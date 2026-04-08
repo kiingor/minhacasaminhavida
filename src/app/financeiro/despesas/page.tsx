@@ -43,10 +43,10 @@ export default function DespesasPage() {
           <h1 className="font-display text-3xl font-extrabold">Despesas</h1>
           <p className="text-slate-500">Total: <span className="font-mono font-semibold text-danger">{formatBRL(total)}</span></p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <MonthSelector mes={mes} onChange={setMes} />
           <Link href="/financeiro/despesas/fatura-ia">
-            <Button variant="outline"><Sparkles size={16} className="text-primary" /> Lançamento com IA</Button>
+            <Button variant="outline" className="text-sm"><Sparkles size={16} className="text-primary" /> <span className="hidden sm:inline">Lançamento com IA</span><span className="sm:hidden">IA</span></Button>
           </Link>
           <Button onClick={() => setShowForm(true)}><Plus size={16} /> Nova</Button>
         </div>

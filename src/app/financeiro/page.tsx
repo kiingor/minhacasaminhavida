@@ -46,7 +46,7 @@ export default function FinanceiroPage() {
       </motion.div>
 
       {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-3 lg:grid-cols-6">
         <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-4 hover:shadow-lg transition-shadow group">
           <ArrowDownCircle size={22} className="group-hover:scale-110 transition-transform" />
           <div className="font-display font-bold text-base mt-2">Despesas</div>

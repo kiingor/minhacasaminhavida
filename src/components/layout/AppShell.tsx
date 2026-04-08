@@ -69,12 +69,12 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main — rola independente da sidebar */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">{children}</div>
       </main>
 
       {/* Bottom nav (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t flex justify-around py-2 z-40">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t flex justify-around pt-2 z-40" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
         {nav.map(({ href, label, icon: Icon }) => {
           const active = path === href || (href !== "/" && path.startsWith(href));
           return (

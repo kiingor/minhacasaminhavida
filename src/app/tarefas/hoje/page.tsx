@@ -92,19 +92,28 @@ export default function TarefasHojePage() {
           </a>
         </motion.div>
       ) : (
-        <div className="overflow-x-auto pb-2">
-          <div
-            className="grid gap-4"
-            style={{
-              gridTemplateColumns: `repeat(${Math.min(ativas.length, 4)}, minmax(280px, 1fr))`,
-              minWidth: ativas.length > 2 ? `${ativas.length * 296}px` : undefined,
-            }}
-          >
+        <>
+          {/* Mobile: colunas empilhadas */}
+          <div className="md:hidden space-y-4">
             {ativas.map((pessoa) => (
               <PersonColumn key={pessoa._id} pessoa={pessoa} data={data} />
             ))}
           </div>
-        </div>
+          {/* Desktop: scroll horizontal lado a lado */}
+          <div className="hidden md:block overflow-x-auto pb-2">
+            <div
+              className="grid gap-4"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(ativas.length, 4)}, minmax(280px, 1fr))`,
+                minWidth: ativas.length > 2 ? `${ativas.length * 296}px` : undefined,
+              }}
+            >
+              {ativas.map((pessoa) => (
+                <PersonColumn key={pessoa._id} pessoa={pessoa} data={data} />
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

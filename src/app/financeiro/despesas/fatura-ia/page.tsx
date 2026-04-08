@@ -345,50 +345,53 @@ export default function FaturaIAPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: it.ativo ? 1 : 0.4, y: 0 }}
               exit={{ opacity: 0, height: 0 }}
-              className={`rounded-xl bg-white border p-3 flex items-center gap-3 transition-colors ${
-                !it.ativo ? "bg-slate-50" : ""
-              }`}
+              className={`rounded-xl bg-white border p-3 space-y-2 transition-colors ${!it.ativo ? "bg-slate-50" : ""}`}
             >
-              {/* Cor da categoria sugerida */}
-              <div
-                className="w-2 self-stretch rounded-full shrink-0"
-                style={{ background: CORES_CATEGORIA[it.categoria_sugerida] ?? "#64748B" }}
-              />
-
-              {/* Descrição editável */}
-              <div className="flex-1 min-w-0">
-                {it.ativo ? (
-                  <input
-                    type="text"
-                    value={it.descricao}
-                    onChange={(e) => setItemDescricao(it.id, e.target.value)}
-                    className="w-full text-sm font-medium bg-transparent border-b border-transparent hover:border-slate-200 focus:border-primary focus:outline-none truncate py-0.5"
-                  />
-                ) : (
-                  <div className="font-medium text-sm truncate line-through text-slate-400">{it.descricao}</div>
-                )}
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span>{it.categoria_sugerida}</span>
-                  {it.parcela_atual && it.total_parcelas && (
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                      {it.parcela_atual}/{it.total_parcelas}
-                    </span>
+              {/* Linha 1: cor + descrição + valor + remover */}
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-2 self-stretch rounded-full shrink-0"
+                  style={{ background: CORES_CATEGORIA[it.categoria_sugerida] ?? "#64748B" }}
+                />
+                <div className="flex-1 min-w-0">
+                  {it.ativo ? (
+                    <input
+                      type="text"
+                      value={it.descricao}
+                      onChange={(e) => setItemDescricao(it.id, e.target.value)}
+                      className="w-full text-sm font-medium bg-transparent border-b border-transparent hover:border-slate-200 focus:border-primary focus:outline-none py-0.5"
+                    />
+                  ) : (
+                    <div className="font-medium text-sm truncate line-through text-slate-400">{it.descricao}</div>
                   )}
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span>{it.categoria_sugerida}</span>
+                    {it.parcela_atual && it.total_parcelas && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                        {it.parcela_atual}/{it.total_parcelas}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <div className="font-mono text-sm font-semibold text-danger shrink-0">{formatBRL(it.valor)}</div>
+                {it.ativo ? (
+                  <button onClick={() => removeItem(it.id)} className="p-1.5 text-slate-300 hover:text-danger rounded transition-colors shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                ) : (
+                  <button onClick={() => restoreItem(it.id)} className="p-1.5 text-slate-300 hover:text-success rounded transition-colors shrink-0" title="Restaurar">
+                    <Check size={14} />
+                  </button>
+                )}
               </div>
 
-              {/* Valor */}
-              <div className="font-mono text-sm font-semibold text-danger shrink-0">
-                {formatBRL(it.valor)}
-              </div>
-
-              {/* Categoria + Pessoa */}
+              {/* Linha 2: selects (visíveis só se ativo) */}
               {it.ativo && (
-                <div className="flex gap-1.5 shrink-0">
+                <div className="flex gap-2 pl-4">
                   <select
                     value={it.categoriaId}
                     onChange={(e) => setItemCategoria(it.id, e.target.value as Id<"categorias">)}
-                    className={`h-8 rounded-lg border px-2 text-xs w-32 ${
+                    className={`flex-1 h-8 rounded-lg border px-2 text-xs ${
                       !it.categoriaId ? "border-warning bg-warning/5 text-warning" : "border-slate-200"
                     }`}
                   >
@@ -400,7 +403,7 @@ export default function FaturaIAPage() {
                   <select
                     value={it.pessoaId}
                     onChange={(e) => setItemPessoa(it.id, e.target.value as Id<"pessoas"> | "ambos" | "")}
-                    className={`h-8 rounded-lg border px-2 text-xs w-28 ${
+                    className={`flex-1 h-8 rounded-lg border px-2 text-xs ${
                       !it.pessoaId ? "border-warning bg-warning/5 text-warning" : "border-slate-200"
                     }`}
                   >
@@ -411,24 +414,6 @@ export default function FaturaIAPage() {
                     ))}
                   </select>
                 </div>
-              )}
-
-              {/* Remover / restaurar */}
-              {it.ativo ? (
-                <button
-                  onClick={() => removeItem(it.id)}
-                  className="p-1.5 text-slate-300 hover:text-danger rounded transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => restoreItem(it.id)}
-                  className="p-1.5 text-slate-300 hover:text-success rounded transition-colors text-xs"
-                  title="Restaurar"
-                >
-                  <Check size={14} />
-                </button>
               )}
             </motion.div>
           ))}

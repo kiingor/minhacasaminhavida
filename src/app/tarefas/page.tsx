@@ -34,7 +34,7 @@ export default function TarefasPage() {
       </motion.div>
 
       {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <motion.div variants={item} className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Link href="/tarefas/hoje" className="rounded-xl bg-gradient-to-br from-primary to-primary-dark text-white p-5 hover:shadow-lg transition-shadow group">
           <ListPlus size={24} className="group-hover:scale-110 transition-transform" />
           <div className="font-display font-bold text-lg mt-2">Tarefas de Hoje</div>
@@ -58,7 +58,7 @@ export default function TarefasPage() {
       </motion.div>
 
       {/* Taxa de conclusão */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-3">
+      <motion.div variants={item} className="grid gap-3 grid-cols-3 sm:grid-cols-3">
         {taxas === undefined
           ? [...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)
           : [

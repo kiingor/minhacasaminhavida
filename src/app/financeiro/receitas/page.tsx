@@ -45,7 +45,7 @@ export default function ReceitasPage() {
           <h1 className="font-display text-3xl font-extrabold">Receitas</h1>
           <p className="text-slate-500">Total: <span className="font-mono font-semibold text-success">{formatBRL(total)}</span></p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <MonthSelector mes={mes} onChange={setMes} />
           <Button onClick={() => setShowForm(true)}><Plus size={16} /> Nova</Button>
         </div>

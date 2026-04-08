@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #6366F1;
+  --primary-light: #818CF8;
+  --primary-dark: #4F46E5;
+  --success: #10B981;
+  --danger: #F43F5E;
+  --warning: #F59E0B;
+  --info: #06B6D4;
+  --xp-gold: #FBBF24;
+  --xp-gold-dark: #F59E0B;
+  --level-up-glow: #FFD700;
+  --streak-fire: #FB7185;
+  --task-limpeza: #06B6D4;
+  --task-cozinha: #F97316;
+  --task-roupas: #8B5CF6;
+  --task-pets: #EC4899;
+  --task-jardim: #10B981;
+  --task-compras: #3B82F6;
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #1E1B4B;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

@@ -29,13 +29,16 @@ export const listByMonth = query({
         }
       } else if (d.tipo === "parcelada") {
         const totalParcelas = d.totalParcelas ?? 1;
+        const parcelaInicial = d.parcelaAtual ?? 1;
         const offset = monthDiff(origMes, mes);
-        if (offset >= 0 && offset < totalParcelas) {
+        const parcelaNoMes = parcelaInicial + offset;
+        // Só aparece enquanto ainda há parcelas restantes
+        if (offset >= 0 && parcelaNoMes <= totalParcelas) {
           const dia = d.dataVencimento.slice(8, 10);
           result.push({
             ...d,
             _projectedMes: mes,
-            _parcela: (d.parcelaAtual ?? 1) + offset,
+            _parcela: parcelaNoMes,
             dataVencimento: `${mes}-${dia}`,
           });
         }

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Check, Trash2, CreditCard, ChevronLeft } from "lucide-react";
+import { Plus, Check, Trash2, CreditCard, ChevronLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -45,6 +45,9 @@ export default function DespesasPage() {
         </div>
         <div className="flex gap-2 items-center">
           <MonthSelector mes={mes} onChange={setMes} />
+          <Link href="/financeiro/despesas/fatura-ia">
+            <Button variant="outline"><Sparkles size={16} className="text-primary" /> Lançamento com IA</Button>
+          </Link>
           <Button onClick={() => setShowForm(true)}><Plus size={16} /> Nova</Button>
         </div>
       </div>

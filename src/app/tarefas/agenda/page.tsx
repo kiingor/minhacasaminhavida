@@ -85,7 +85,7 @@ export default function AgendaPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-extrabold">Agenda Inteligente</h1>
+          <h1 className="font-display text-3xl font-extrabold">Definir Tarefas</h1>
           <p className="text-slate-500">Encaixe das tarefas no seu horário livre</p>
         </div>
         <div className="inline-flex items-center gap-1 rounded-lg border bg-white p-1">

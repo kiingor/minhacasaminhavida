@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { parseBRL } from "@/lib/formatters";
+import { Plus, X } from "lucide-react";
 
 interface Props {
   onClose: () => void;
@@ -16,8 +17,10 @@ interface Props {
 export function DespesaForm({ onClose }: Props) {
   const token = useSessionToken();
   const create = useMutation(api.financeiro.despesas.create);
+  const criarCategoria = useMutation(api.financeiro.categorias.create);
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token, tipo: "despesa" } : "skip");
   const pessoas = useQuery(api.pessoas.list, token ? { sessionToken: token } : "skip");
+  const cartoes = useQuery(api.financeiro.cartoes.list, token ? { sessionToken: token } : "skip");
 
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
@@ -30,6 +33,25 @@ export function DespesaForm({ onClose }: Props) {
   const [observacao, setObservacao] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Nova categoria inline
+  const [showNovaCategoria, setShowNovaCategoria] = useState(false);
+  const [novaCatNome, setNovaCatNome] = useState("");
+  const [novaCatCor, setNovaCatCor] = useState("#EF4444");
+  const [savingCat, setSavingCat] = useState(false);
+
+  async function handleCriarCategoria() {
+    if (!token || !novaCatNome.trim()) return;
+    setSavingCat(true);
+    try {
+      const id = await criarCategoria({ sessionToken: token, nome: novaCatNome.trim(), tipo: "despesa", icone: "Package", cor: novaCatCor });
+      setCategoriaId(id);
+      setNovaCatNome("");
+      setShowNovaCategoria(false);
+    } finally {
+      setSavingCat(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +113,12 @@ export function DespesaForm({ onClose }: Props) {
         )}
 
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-slate-700">Categoria</label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">Categoria</label>
+            <button type="button" onClick={() => setShowNovaCategoria((v) => !v)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <Plus size={11} /> Nova categoria
+            </button>
+          </div>
           <select
             value={categoriaId}
             onChange={(e) => setCategoriaId(e.target.value as Id<"categorias">)}
@@ -103,6 +130,24 @@ export function DespesaForm({ onClose }: Props) {
               <option key={c._id} value={c._id}>{c.nome}</option>
             ))}
           </select>
+          {showNovaCategoria && (
+            <div className="flex gap-2 items-center p-2.5 rounded-lg bg-slate-50 border">
+              <input type="color" value={novaCatCor} onChange={(e) => setNovaCatCor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0 p-0 shrink-0" />
+              <input
+                type="text"
+                placeholder="Nome da categoria"
+                value={novaCatNome}
+                onChange={(e) => setNovaCatNome(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCriarCategoria())}
+                className="flex-1 px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button type="button" onClick={handleCriarCategoria} disabled={!novaCatNome.trim() || savingCat} className="px-2.5 py-1 rounded-lg bg-primary text-white text-xs font-medium disabled:opacity-50">
+                {savingCat ? "..." : "Criar"}
+              </button>
+              <button type="button" onClick={() => setShowNovaCategoria(false)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -120,7 +165,13 @@ export function DespesaForm({ onClose }: Props) {
         </div>
 
         <Input label="Vencimento" type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} required />
-        <Input label="Cartão (opcional)" value={cartao} onChange={(e) => setCartao(e.target.value)} placeholder="Ex: Nubank" />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">Cartão (opcional)</label>
+          <select value={cartao} onChange={(e) => setCartao(e.target.value)} className="h-10 rounded-lg border border-slate-300 px-3 text-sm">
+            <option value="">Nenhum</option>
+            {cartoes?.map((c) => <option key={c._id} value={c.nome}>{c.nome}{c.bandeira ? ` · ${c.bandeira}` : ""}</option>)}
+          </select>
+        </div>
         <Input label="Observação" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
 
         {error && <p className="text-sm text-danger">{error}</p>}

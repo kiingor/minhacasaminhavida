@@ -47,7 +47,7 @@ export default function TarefasPage() {
         </Link>
         <Link href="/tarefas/agenda" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
           <CalendarDays size={24} className="text-primary group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Agenda</div>
+          <div className="font-display font-bold text-lg mt-2">Definir Tarefas</div>
           <div className="text-xs text-slate-500">Encaixe inteligente</div>
         </Link>
         <a href="/tv" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">

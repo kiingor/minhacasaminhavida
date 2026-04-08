@@ -178,6 +178,14 @@ export default defineSchema({
     .index("by_family_data", ["familyId", "data"])
     .index("by_pessoa_data", ["pessoaId", "data"]),
 
+  // ============ CARTÕES ============
+  cartoes: defineTable({
+    nome: v.string(),
+    bandeira: v.optional(v.string()), // Visa, Mastercard, Elo, etc.
+    cor: v.string(),
+    familyId: v.string(),
+  }).index("by_family", ["familyId"]),
+
   // Recorrência: quais tarefas do catálogo cada pessoa faz regularmente
   tarefasRecorrentes: defineTable({
     pessoaId: v.id("pessoas"),

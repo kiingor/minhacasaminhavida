@@ -19,8 +19,9 @@ function isDespesaInMes(d: any, mes: string): boolean {
   if (d.tipo === "avulsa") return origMes === mes;
   if (d.tipo === "fixa") return mes >= origMes;
   if (d.tipo === "parcelada") {
+    const parcelaInicial = d.parcelaAtual ?? 1;
     const offset = monthDiff(origMes, mes);
-    return offset >= 0 && offset < (d.totalParcelas ?? 1);
+    return offset >= 0 && (parcelaInicial + offset) <= (d.totalParcelas ?? 1);
   }
   return false;
 }
@@ -102,6 +103,56 @@ export const historico6Meses = query({
       result.push({ mes, despesas: totalD, receitas: totalR, saldo: totalR - totalD });
     }
     return result;
+  },
+});
+
+// Gastos por pessoa no mês
+export const gastosPorPessoa = query({
+  args: { sessionToken: v.string(), mes: v.string() },
+  handler: async (ctx, { sessionToken, mes }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const [despesas, pessoas] = await Promise.all([
+      ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("pessoas").withIndex("by_family", (q) => q.eq("familyId", user.familyId)).collect(),
+    ]);
+
+    const dMes = despesas.filter((d) => isDespesaInMes(d, mes));
+
+    // Agrupar por pessoa
+    const map = new Map<string, number>();
+    let semPessoa = 0;
+    for (const d of dMes) {
+      if (d.pessoaId) {
+        map.set(d.pessoaId, (map.get(d.pessoaId) ?? 0) + d.valor);
+      } else {
+        semPessoa += d.valor;
+      }
+    }
+
+    const resultado = pessoas
+      .filter((p) => map.has(p._id))
+      .map((p) => ({
+        pessoaId: p._id,
+        nome: p.apelido ?? p.nome,
+        cor: p.corTema,
+        total: map.get(p._id) ?? 0,
+        pagas: dMes.filter((d) => d.pessoaId === p._id && d.pago).reduce((s, d) => s + d.valor, 0),
+        pendentes: dMes.filter((d) => d.pessoaId === p._id && !d.pago).reduce((s, d) => s + d.valor, 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    if (semPessoa > 0) {
+      resultado.push({
+        pessoaId: "" as any,
+        nome: "Sem pessoa",
+        cor: "#94A3B8",
+        total: semPessoa,
+        pagas: dMes.filter((d) => !d.pessoaId && d.pago).reduce((s, d) => s + d.valor, 0),
+        pendentes: dMes.filter((d) => !d.pessoaId && !d.pago).reduce((s, d) => s + d.valor, 0),
+      });
+    }
+
+    return resultado;
   },
 });
 

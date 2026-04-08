@@ -10,6 +10,8 @@
 
 import type * as _helpers from "../_helpers.js";
 import type * as auth from "../auth.js";
+import type * as financeiro_analisarFatura from "../financeiro/analisarFatura.js";
+import type * as financeiro_cartoes from "../financeiro/cartoes.js";
 import type * as financeiro_categorias from "../financeiro/categorias.js";
 import type * as financeiro_dashboardFinanceiro from "../financeiro/dashboardFinanceiro.js";
 import type * as financeiro_despesas from "../financeiro/despesas.js";
@@ -33,6 +35,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   _helpers: typeof _helpers;
   auth: typeof auth;
+  "financeiro/analisarFatura": typeof financeiro_analisarFatura;
+  "financeiro/cartoes": typeof financeiro_cartoes;
   "financeiro/categorias": typeof financeiro_categorias;
   "financeiro/dashboardFinanceiro": typeof financeiro_dashboardFinanceiro;
   "financeiro/despesas": typeof financeiro_despesas;

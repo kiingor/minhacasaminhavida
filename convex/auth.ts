@@ -1,5 +1,21 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
+
+// Query interna para validar sessão a partir de Actions
+export const getUserByToken = internalQuery({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    if (!sessionToken) return null;
+    const now = new Date().toISOString();
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", sessionToken))
+      .unique();
+    if (!session || session.expiresAt < now) return null;
+    const user = await ctx.db.get(session.userId);
+    return user;
+  },
+});
 
 // Hash simples com SHA-256 (sem bcrypt para manter compatibilidade com Convex runtime)
 async function hashPassword(password: string): Promise<string> {

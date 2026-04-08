@@ -101,23 +101,6 @@ export default function ConfiguracoesPage() {
         </Button>
       </motion.div>
 
-      {/* Sobre */}
-      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm">
-        <h2 className="font-display font-bold text-lg mb-2">Sobre</h2>
-        <p className="text-sm text-slate-500">
-          <strong>Minha Casa Minha Vida</strong> — Gestão familiar gamificada.<br />
-          Stack: Next.js 14 · Convex · Framer Motion · Recharts · Howler
-        </p>
-        <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-          <strong>Sons:</strong> coloque os arquivos em <code>public/sounds/</code>:
-          <ul className="mt-1 space-y-0.5 list-disc list-inside">
-            <li><code>level-up-medieval.mp3</code> — fanfarra medieval (Freesound / OpenGameArt)</li>
-            <li><code>task-check.mp3</code> — ding curto</li>
-            <li><code>task-uncheck.mp3</code> — unclick</li>
-            <li><code>xp-gain.mp3</code> — ganho sutil de XP</li>
-          </ul>
-        </div>
-      </motion.div>
     </motion.div>
   );
 }

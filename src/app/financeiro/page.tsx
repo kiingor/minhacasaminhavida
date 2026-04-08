@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -46,26 +46,36 @@ export default function FinanceiroPage() {
       </motion.div>
 
       {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-5 hover:shadow-lg transition-shadow group">
-          <ArrowDownCircle size={24} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Despesas</div>
+      <motion.div variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-4 hover:shadow-lg transition-shadow group">
+          <ArrowDownCircle size={22} className="group-hover:scale-110 transition-transform" />
+          <div className="font-display font-bold text-base mt-2">Despesas</div>
           <div className="text-xs text-white/80">Lançar e controlar</div>
         </Link>
-        <Link href="/financeiro/receitas" className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-5 hover:shadow-lg transition-shadow group">
-          <ArrowUpCircle size={24} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Receitas</div>
+        <Link href="/financeiro/receitas" className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-4 hover:shadow-lg transition-shadow group">
+          <ArrowUpCircle size={22} className="group-hover:scale-110 transition-transform" />
+          <div className="font-display font-bold text-base mt-2">Receitas</div>
           <div className="text-xs text-white/80">Entradas do mês</div>
         </Link>
-        <Link href="/financeiro/metas" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
-          <Target size={24} className="text-primary group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Metas</div>
-          <div className="text-xs text-slate-500">Objetivos de poupança</div>
+        <Link href="/financeiro/metas" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
+          <Target size={22} className="text-primary group-hover:scale-110 transition-transform" />
+          <div className="font-display font-bold text-base mt-2">Metas</div>
+          <div className="text-xs text-slate-500">Poupança</div>
         </Link>
-        <Link href="/financeiro/categorias" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
-          <Tag size={24} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-lg mt-2">Categorias</div>
-          <div className="text-xs text-slate-500">Organizar por tipo</div>
+        <Link href="/financeiro/cartoes" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
+          <CreditCard size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
+          <div className="font-display font-bold text-base mt-2">Cartões</div>
+          <div className="text-xs text-slate-500">Gerenciar</div>
+        </Link>
+        <Link href="/financeiro/relatorios" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
+          <BarChart3 size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
+          <div className="font-display font-bold text-base mt-2">Relatórios</div>
+          <div className="text-xs text-slate-500">Por pessoa</div>
+        </Link>
+        <Link href="/financeiro/categorias" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
+          <Tag size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
+          <div className="font-display font-bold text-base mt-2">Categorias</div>
+          <div className="text-xs text-slate-500">Organizar</div>
         </Link>
       </motion.div>
 

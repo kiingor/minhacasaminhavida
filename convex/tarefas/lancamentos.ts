@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
 import { getCurrentUser } from "../_helpers";
 import { calcularNivel, getTituloByNivel, novoStreak, xpComStreak } from "./gamificacao";
+import { checkAndUnlockAchievements } from "./conquistas";
 
 // Lista lançamentos de uma data (agrupáveis por pessoa no frontend)
 export const listByDate = query({
@@ -15,17 +16,25 @@ export const listByDate = query({
   },
 });
 
-// Lista lançamentos de uma pessoa em uma data
+// Lista lançamentos de uma pessoa em uma data (com categoria do catálogo)
 export const listByPessoaDate = query({
   args: { sessionToken: v.string(), pessoaId: v.id("pessoas"), data: v.string() },
   handler: async (ctx, { sessionToken, pessoaId, data }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const pessoa = await ctx.db.get(pessoaId);
     if (!pessoa || pessoa.familyId !== user.familyId) return [];
-    return await ctx.db
+    const lancs = await ctx.db
       .query("tarefasLancamentos")
       .withIndex("by_pessoa_data", (q) => q.eq("pessoaId", pessoaId).eq("data", data))
       .collect();
+
+    // Enriquecer com categoria do catálogo
+    const result = [];
+    for (const l of lancs) {
+      const cat = await ctx.db.get(l.tarefaCatalogoId);
+      result.push({ ...l, categoriaSnapshot: cat?.categoria ?? "Outros" });
+    }
+    return result;
   },
 });
 
@@ -193,12 +202,32 @@ export const marcarCompletada = mutation({
       levelUpCriado = true;
     }
 
+    // Verificar conquistas
+    const tarefasHoje = await ctx.db
+      .query("tarefasLancamentos")
+      .withIndex("by_pessoa_data", (q) => q.eq("pessoaId", lanc.pessoaId).eq("data", hoje))
+      .collect();
+
+    const newAchievements = await checkAndUnlockAchievements(
+      ctx,
+      lanc.pessoaId,
+      user.familyId,
+      {
+        nivelAtual: nivelDepois,
+        streakDias: streakNovo,
+        tarefasCompletadasTotal: pessoa.tarefasCompletadasTotal + 1,
+        tarefasHojeTotal: tarefasHoje.length,
+        tarefasHojeCompletas: tarefasHoje.filter((t) => t.completada).length,
+      }
+    );
+
     return {
       xpGanho,
       nivelAntes,
       nivelDepois,
       levelUp: levelUpCriado,
       streakDias: streakNovo,
+      newAchievements,
     };
   },
 });

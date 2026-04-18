@@ -2,14 +2,16 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, CreditCard, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, Pencil, CreditCard, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const BANDEIRAS = ["Visa", "Mastercard", "Elo", "American Express", "Hipercard", "Outro"];
 const CORES = ["#6366F1","#EF4444","#F97316","#10B981","#06B6D4","#8B5CF6","#EC4899","#F59E0B","#64748B","#1E1B4B"];
@@ -21,20 +23,40 @@ export default function CartoesPage() {
   const token = useSessionToken();
   const cartoes = useQuery(api.financeiro.cartoes.list, token ? { sessionToken: token } : "skip");
   const create = useMutation(api.financeiro.cartoes.create);
+  const update = useMutation(api.financeiro.cartoes.update);
   const remove = useMutation(api.financeiro.cartoes.remove);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<Id<"cartoes"> | null>(null);
+  const [deleteId, setDeleteId] = useState<Id<"cartoes"> | null>(null);
   const [form, setForm] = useState<FormState>(DEFAULT);
   const [loading, setLoading] = useState(false);
+
+  function openEdit(c: { _id: Id<"cartoes">; nome: string; bandeira?: string; cor: string }) {
+    setEditingId(c._id);
+    setForm({ nome: c.nome, bandeira: c.bandeira ?? "Visa", cor: c.cor });
+    setShowForm(true);
+  }
+
+  function openNew() {
+    setEditingId(null);
+    setForm(DEFAULT);
+    setShowForm(true);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token || !form.nome.trim()) return;
     setLoading(true);
     try {
-      await create({ sessionToken: token, nome: form.nome.trim(), bandeira: form.bandeira || undefined, cor: form.cor });
+      if (editingId) {
+        await update({ sessionToken: token, id: editingId, nome: form.nome.trim(), bandeira: form.bandeira || undefined, cor: form.cor });
+      } else {
+        await create({ sessionToken: token, nome: form.nome.trim(), bandeira: form.bandeira || undefined, cor: form.cor });
+      }
       setShowForm(false);
       setForm(DEFAULT);
+      setEditingId(null);
     } finally {
       setLoading(false);
     }
@@ -50,7 +72,7 @@ export default function CartoesPage() {
           <h1 className="font-display text-3xl font-extrabold">Cartões</h1>
           <p className="text-slate-500">Gerencie seus cartões de crédito</p>
         </div>
-        <Button onClick={() => { setForm(DEFAULT); setShowForm(true); }}>
+        <Button onClick={openNew}>
           <Plus size={16} /> Novo Cartão
         </Button>
       </div>
@@ -58,9 +80,11 @@ export default function CartoesPage() {
       {cartoes === undefined ? (
         <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
       ) : cartoes.length === 0 ? (
-        <div className="text-center py-16 text-slate-400 border-2 border-dashed rounded-2xl">
-          <CreditCard size={32} className="mx-auto mb-2 opacity-40" />
-          <p>Nenhum cartão cadastrado.</p>
+        <div className="text-center py-16 border-2 border-dashed rounded-2xl">
+          <CreditCard size={40} className="mx-auto mb-3 text-slate-300" />
+          <p className="font-medium text-slate-500">Nenhum cartão cadastrado</p>
+          <p className="text-sm text-slate-400 mb-4">Adicione seu primeiro cartão de crédito</p>
+          <Button onClick={openNew}><Plus size={16} /> Novo Cartão</Button>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -79,7 +103,10 @@ export default function CartoesPage() {
                 <div className="font-medium">{c.nome}</div>
                 {c.bandeira && <div className="text-xs text-slate-400">{c.bandeira}</div>}
               </div>
-              <button onClick={() => token && remove({ sessionToken: token, id: c._id })} className="p-1.5 text-slate-300 hover:text-danger rounded transition-colors">
+              <button onClick={() => openEdit(c)} className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded transition-colors">
+                <Pencil size={14} />
+              </button>
+              <button onClick={() => setDeleteId(c._id)} className="p-1.5 text-slate-300 hover:text-danger hover:bg-danger/10 rounded transition-colors">
                 <Trash2 size={14} />
               </button>
             </motion.li>
@@ -87,7 +114,7 @@ export default function CartoesPage() {
         </ul>
       )}
 
-      <Dialog open={showForm} onClose={() => setShowForm(false)} title="Novo Cartão">
+      <Dialog open={showForm} onClose={() => { setShowForm(false); setEditingId(null); }} title={editingId ? "Editar Cartão" : "Novo Cartão"}>
         <form onSubmit={onSubmit} className="space-y-4">
           <Input label="Nome do cartão" placeholder="Ex: Nubank, Inter Gold..." value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} required autoFocus />
 
@@ -126,11 +153,19 @@ export default function CartoesPage() {
           </div>
 
           <div className="flex gap-3">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button type="submit" className="flex-1" disabled={loading || !form.nome.trim()}>{loading ? "Salvando..." : "Criar"}</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancelar</Button>
+            <Button type="submit" className="flex-1" disabled={loading || !form.nome.trim()}>{loading ? "Salvando..." : editingId ? "Salvar" : "Criar"}</Button>
           </div>
         </form>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => { if (token && deleteId) remove({ sessionToken: token, id: deleteId }); }}
+        title="Excluir cartão"
+        description="Tem certeza que deseja excluir este cartão?"
+      />
     </div>
   );
 }

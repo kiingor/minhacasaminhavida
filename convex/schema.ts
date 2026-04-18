@@ -76,6 +76,18 @@ export default defineSchema({
     familyId: v.string(),
   }).index("by_family_tipo", ["familyId", "tipo"]),
 
+  pagadores: defineTable({
+    nome: v.string(),
+    apelido: v.optional(v.string()),
+    tipo: v.union(v.literal("pessoa_fisica"), v.literal("pessoa_juridica"), v.literal("outro")),
+    documento: v.optional(v.string()),
+    cor: v.string(),
+    icone: v.optional(v.string()),
+    observacao: v.optional(v.string()),
+    ativo: v.boolean(),
+    familyId: v.string(),
+  }).index("by_family", ["familyId"]),
+
   despesas: defineTable({
     descricao: v.string(),
     valor: v.number(),
@@ -90,6 +102,7 @@ export default defineSchema({
     cartao: v.optional(v.string()),
     recorrente: v.optional(v.boolean()),
     observacao: v.optional(v.string()),
+    metaIdOrigem: v.optional(v.id("metas")),
     criadoPor: v.id("users"),
     familyId: v.string(),
     criadoEm: v.string(),
@@ -103,6 +116,7 @@ export default defineSchema({
     tipo: v.union(v.literal("fixa"), v.literal("parcelada"), v.literal("avulsa")),
     categoriaId: v.id("categorias"),
     pessoaId: v.id("pessoas"),
+    pagadorId: v.optional(v.id("pagadores")),
     pagadorNome: v.optional(v.string()),
     dataPrevisao: v.string(),
     dataRecebimento: v.optional(v.string()),
@@ -138,6 +152,30 @@ export default defineSchema({
     observacao: v.optional(v.string()),
     familyId: v.string(),
   }).index("by_meta", ["metaId"]),
+
+  pagamentosDespesas: defineTable({
+    despesaId: v.id("despesas"),
+    mes: v.string(),
+    dataPagamento: v.string(),
+    valorPago: v.optional(v.number()),
+    familyId: v.string(),
+    criadoPor: v.id("users"),
+    criadoEm: v.string(),
+  })
+    .index("by_familia_mes", ["familyId", "mes"])
+    .index("by_despesa_mes", ["despesaId", "mes"]),
+
+  recebimentosReceitas: defineTable({
+    receitaId: v.id("receitas"),
+    mes: v.string(),
+    dataRecebimento: v.string(),
+    valorRecebido: v.optional(v.number()),
+    familyId: v.string(),
+    criadoPor: v.id("users"),
+    criadoEm: v.string(),
+  })
+    .index("by_familia_mes", ["familyId", "mes"])
+    .index("by_receita_mes", ["receitaId", "mes"]),
 
   // ============ TAREFAS ============
   tarefasCatalogo: defineTable({

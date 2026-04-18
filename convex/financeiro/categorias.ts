@@ -84,7 +84,7 @@ export const seedDefaults = mutation({
       { nome: "Salário", icone: "Briefcase", cor: "#10B981" },
       { nome: "Freelance", icone: "Laptop", cor: "#06B6D4" },
       { nome: "Investimentos", icone: "TrendingUp", cor: "#F59E0B" },
-      { nome: "Outros", icone: "Plus", cor: "#64748B" },
+      { nome: "Outros", icone: "Package", cor: "#64748B" },
     ];
 
     for (const c of despesas) {

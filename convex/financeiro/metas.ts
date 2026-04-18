@@ -48,6 +48,22 @@ export const create = mutation({
   },
 });
 
+async function obterCategoriaMetas(ctx: any, familyId: string) {
+  const categorias = await ctx.db
+    .query("categorias")
+    .withIndex("by_family_tipo", (q: any) => q.eq("familyId", familyId).eq("tipo", "despesa"))
+    .collect();
+  const existente = categorias.find((c: any) => c.nome === "Metas / Poupança");
+  if (existente) return existente._id;
+  return await ctx.db.insert("categorias", {
+    nome: "Metas / Poupança",
+    tipo: "despesa",
+    icone: "PiggyBank",
+    cor: "#6366F1",
+    familyId,
+  });
+}
+
 export const addAporte = mutation({
   args: {
     sessionToken: v.string(),
@@ -59,14 +75,33 @@ export const addAporte = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const meta = await ctx.db.get(metaId);
     if (!meta || meta.familyId !== user.familyId) throw new Error("Meta não encontrada");
+    if (valor <= 0) throw new Error("Valor do aporte deve ser maior que zero");
+    const hoje = new Date().toISOString().slice(0, 10);
+
     await ctx.db.insert("aportesMeta", {
       metaId,
       valor,
-      data: new Date().toISOString().slice(0, 10),
+      data: hoje,
       observacao,
       familyId: user.familyId,
     });
     await ctx.db.patch(metaId, { valorAtual: meta.valorAtual + valor });
+
+    const categoriaId = await obterCategoriaMetas(ctx, user.familyId);
+    await ctx.db.insert("despesas", {
+      descricao: `Aporte: ${meta.titulo}`,
+      valor,
+      tipo: "avulsa",
+      categoriaId: categoriaId as any,
+      dataVencimento: hoje,
+      dataPagamento: hoje,
+      pago: true,
+      observacao,
+      metaIdOrigem: metaId,
+      criadoPor: user._id,
+      familyId: user.familyId,
+      criadoEm: new Date().toISOString(),
+    });
   },
 });
 

@@ -26,6 +26,22 @@ export const create = mutation({
   },
 });
 
+export const update = mutation({
+  args: {
+    sessionToken: v.string(),
+    id: v.id("cartoes"),
+    nome: v.optional(v.string()),
+    bandeira: v.optional(v.string()),
+    cor: v.optional(v.string()),
+  },
+  handler: async (ctx, { sessionToken, id, ...rest }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const c = await ctx.db.get(id);
+    if (!c || c.familyId !== user.familyId) throw new Error("Não encontrado");
+    await ctx.db.patch(id, rest);
+  },
+});
+
 export const remove = mutation({
   args: { sessionToken: v.string(), id: v.id("cartoes") },
   handler: async (ctx, { sessionToken, id }) => {

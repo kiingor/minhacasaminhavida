@@ -321,19 +321,51 @@ export default function FaturaIAPage() {
         </div>
       </div>
 
-      {/* Nova categoria */}
-      <div className="flex items-center justify-between">
+      {/* Ações em lote + Nova categoria */}
+      <div className="rounded-2xl bg-white border p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-700">Aplicar a todos os lançamentos</span>
+          <button
+            onClick={() => setShowNovaCategoria(true)}
+            className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+          >
+            <Plus size={13} /> Nova categoria
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <select
+            onChange={(e) => {
+              const val = e.target.value as Id<"categorias">;
+              if (val) setItems((prev) => prev.map((it) => it.ativo ? { ...it, categoriaId: val } : it));
+              e.target.value = "";
+            }}
+            className="flex-1 h-9 rounded-lg border border-slate-200 px-2 text-xs"
+          >
+            <option value="">Categoria p/ todos...</option>
+            {categorias?.map((c) => (
+              <option key={c._id} value={c._id}>{c.nome}</option>
+            ))}
+          </select>
+          <select
+            onChange={(e) => {
+              const val = e.target.value as Id<"pessoas"> | "ambos" | "";
+              if (val) setItems((prev) => prev.map((it) => it.ativo ? { ...it, pessoaId: val } : it));
+              e.target.value = "";
+            }}
+            className="flex-1 h-9 rounded-lg border border-slate-200 px-2 text-xs"
+          >
+            <option value="">Pessoa p/ todos...</option>
+            <option value="ambos">Todos</option>
+            {pessoas?.map((p) => (
+              <option key={p._id} value={p._id}>{p.apelido ?? p.nome}</option>
+            ))}
+          </select>
+        </div>
         <div className="text-sm text-slate-500 flex gap-2 flex-wrap">
           {semCategoria > 0 && <span className="text-warning font-medium">{semCategoria} sem categoria</span>}
           {semPessoa > 0 && <span className="text-warning font-medium">{semPessoa} sem pessoa</span>}
-          {semCategoria === 0 && semPessoa === 0 && <span>Tudo preenchido ✓</span>}
+          {semCategoria === 0 && semPessoa === 0 && <span className="text-success">Tudo preenchido</span>}
         </div>
-        <button
-          onClick={() => setShowNovaCategoria(true)}
-          className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
-        >
-          <Plus size={13} /> Nova categoria
-        </button>
       </div>
 
       {/* Lista de itens */}

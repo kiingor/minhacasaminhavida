@@ -12,9 +12,10 @@ import { XPFloat, useXPFloat } from "./XPFloat";
 
 interface Props {
   lancamento: Doc<"tarefasLancamentos">;
+  onAchievements?: (achievements: Array<{ tipo: string; nome: string; icone: string }>) => void;
 }
 
-export function TaskCheckButton({ lancamento }: Props) {
+export function TaskCheckButton({ lancamento, onAchievements }: Props) {
   const token = useSessionToken();
   const marcar = useMutation(api.tarefas.lancamentos.marcarCompletada);
   const desmarcar = useMutation(api.tarefas.lancamentos.desmarcarCompletada);
@@ -37,6 +38,9 @@ export function TaskCheckButton({ lancamento }: Props) {
           fire(res.xpGanho, true);
           playSound(SOUNDS.taskCheck, 0.6);
           playSound(SOUNDS.xpGain, 0.3);
+          if (res.newAchievements?.length && onAchievements) {
+            onAchievements(res.newAchievements);
+          }
         }
       }
     } finally {

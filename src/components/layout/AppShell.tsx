@@ -31,10 +31,23 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar (desktop) — fixo, não rola com o conteúdo */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 bg-[#1E1B4B] text-white p-4 overflow-y-auto">
-        <div className="font-display text-xl font-extrabold mb-8">🏠 Minha Casa</div>
+    <div className="flex h-screen overflow-hidden relative">
+      {/* Background gradient sutil */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-blue-50/40 to-indigo-50/30 -z-10" />
+
+      {/* Sidebar (desktop) — Liquid Glass */}
+      <aside className="hidden md:flex flex-col w-64 shrink-0 m-3 rounded-2xl bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] p-4 overflow-y-auto">
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-8 px-1">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-md shadow-primary/20">
+            <Home size={20} className="text-white" />
+          </div>
+          <div>
+            <div className="font-display text-lg font-extrabold text-slate-800">Minha Casa</div>
+            <div className="text-[10px] text-slate-400 font-medium -mt-0.5">Minha Vida</div>
+          </div>
+        </div>
+
         <nav className="flex flex-col gap-1 flex-1">
           {nav.map(({ href, label, icon: Icon }) => {
             const active = path === href || (href !== "/" && path.startsWith(href));
@@ -43,8 +56,10 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                  active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5"
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium",
+                  active
+                    ? "bg-primary/90 text-white shadow-md shadow-primary/20"
+                    : "text-slate-600 hover:bg-white/60 hover:text-slate-800"
                 )}
               >
                 <Icon size={20} />
@@ -56,11 +71,11 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
 
         {/* User info + logout */}
         {session && (
-          <div className="border-t border-white/10 pt-3 mt-3">
-            <div className="text-xs text-white/50 truncate mb-2">{session.name}</div>
+          <div className="border-t border-slate-200/50 pt-3 mt-3">
+            <div className="text-xs text-slate-400 truncate mb-2 px-1">{session.name}</div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/70 hover:bg-white/5 text-sm w-full"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-500 hover:bg-white/60 hover:text-danger text-sm w-full transition-all"
             >
               <LogOut size={16} /> Sair
             </button>
@@ -73,8 +88,11 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 md:p-8 max-w-7xl mx-auto">{children}</div>
       </main>
 
-      {/* Bottom nav (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t flex justify-around pt-2 z-40" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+      {/* Bottom nav (mobile) — Liquid Glass */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 mx-2 mb-2 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-[0_-4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] flex justify-around pt-2"
+        style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
+      >
         {nav.map(({ href, label, icon: Icon }) => {
           const active = path === href || (href !== "/" && path.startsWith(href));
           return (
@@ -82,12 +100,14 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-2 py-1 text-xs",
-                active ? "text-primary" : "text-slate-500"
+                "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-xs transition-all",
+                active
+                  ? "text-primary bg-primary/10"
+                  : "text-slate-400 hover:text-slate-600"
               )}
             >
               <Icon size={20} />
-              {label}
+              <span className={active ? "font-semibold" : ""}>{label}</span>
             </Link>
           );
         })}

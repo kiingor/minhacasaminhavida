@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3 } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3, Users } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -10,6 +10,12 @@ import { MonthSelector } from "@/components/financeiro/MonthSelector";
 import { SummaryCard } from "@/components/financeiro/SummaryCard";
 import { CategoryPieChart } from "@/components/financeiro/CategoryPieChart";
 import { HistoryChart } from "@/components/financeiro/HistoryChart";
+import { TopPagadoresChart } from "@/components/financeiro/TopPagadoresChart";
+import { ProgressoMesCard } from "@/components/financeiro/ProgressoMesCard";
+import { MediaDiariaCard } from "@/components/financeiro/MediaDiariaCard";
+import { FixasVsVariaveisChart } from "@/components/financeiro/FixasVsVariaveisChart";
+import { CartaoVsAVistaChart } from "@/components/financeiro/CartaoVsAVistaChart";
+import { CategoriasEstouradas } from "@/components/financeiro/CategoriasEstouradas";
 import { Skeleton } from "@/components/ui/skeleton";
 import { currentMonth } from "@/lib/monthUtils";
 import { formatBRL, formatDate } from "@/lib/formatters";
@@ -24,6 +30,13 @@ export default function FinanceiroPage() {
   const resumo = useQuery(api.financeiro.dashboardFinanceiro.resumoMes, token ? { sessionToken: token, mes } : "skip");
   const porCategoria = useQuery(api.financeiro.dashboardFinanceiro.despesasPorCategoria, token ? { sessionToken: token, mes } : "skip");
   const historico = useQuery(api.financeiro.dashboardFinanceiro.historico6Meses, token ? { sessionToken: token, mesAtual: mes } : "skip");
+  const receitasPorCategoria = useQuery(api.financeiro.dashboardFinanceiro.receitasPorCategoria, token ? { sessionToken: token, mes } : "skip");
+  const topPagadores = useQuery(api.financeiro.dashboardFinanceiro.receitasPorPagador, token ? { sessionToken: token, mes, limit: 5 } : "skip");
+  const progresso = useQuery(api.financeiro.dashboardFinanceiro.progressoMes, token ? { sessionToken: token, mes } : "skip");
+  const mediaDiaria = useQuery(api.financeiro.dashboardFinanceiro.mediaDiariaProjecao, token ? { sessionToken: token, mes } : "skip");
+  const fixasVar = useQuery(api.financeiro.dashboardFinanceiro.fixasVsVariaveis, token ? { sessionToken: token, mes } : "skip");
+  const cartaoVista = useQuery(api.financeiro.dashboardFinanceiro.cartaoVsAVista, token ? { sessionToken: token, mes } : "skip");
+  const estouradas = useQuery(api.financeiro.dashboardFinanceiro.categoriasEstouradas, token ? { sessionToken: token, mes } : "skip");
   const proximas = useQuery(api.financeiro.dashboardFinanceiro.proximasContas, token ? { sessionToken: token } : "skip");
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token } : "skip");
   const seedCategorias = useMutation(api.financeiro.categorias.seedDefaults);
@@ -46,7 +59,7 @@ export default function FinanceiroPage() {
       </motion.div>
 
       {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-3 lg:grid-cols-6">
+      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
         <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-4 hover:shadow-lg transition-shadow group">
           <ArrowDownCircle size={22} className="group-hover:scale-110 transition-transform" />
           <div className="font-display font-bold text-base mt-2">Despesas</div>
@@ -70,12 +83,17 @@ export default function FinanceiroPage() {
         <Link href="/financeiro/relatorios" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
           <BarChart3 size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
           <div className="font-display font-bold text-base mt-2">Relatórios</div>
-          <div className="text-xs text-slate-500">Por pessoa</div>
+          <div className="text-xs text-slate-500">Análises</div>
         </Link>
         <Link href="/financeiro/categorias" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
           <Tag size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
           <div className="font-display font-bold text-base mt-2">Categorias</div>
           <div className="text-xs text-slate-500">Organizar</div>
+        </Link>
+        <Link href="/financeiro/pagadores" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
+          <Users size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
+          <div className="font-display font-bold text-base mt-2">Pagadores</div>
+          <div className="text-xs text-slate-500">Quem te paga</div>
         </Link>
       </motion.div>
 
@@ -83,10 +101,10 @@ export default function FinanceiroPage() {
       <motion.div variants={item}>
         {resumo ? (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-            <SummaryCard label="Saldo" valor={resumo.saldo} icon={Wallet} color={resumo.saldo >= 0 ? "#10B981" : "#F43F5E"} />
-            <SummaryCard label="A Receber" valor={resumo.aReceber} icon={TrendingUp} color="#10B981" />
-            <SummaryCard label="A Pagar" valor={resumo.aPagar} icon={TrendingDown} color="#F43F5E" />
-            <SummaryCard label="Economia" valor={resumo.economia} icon={PiggyBank} color="#6366F1" />
+            <SummaryCard label="Saldo" valor={resumo.saldo} icon={Wallet} color={resumo.saldo >= 0 ? "#10B981" : "#F43F5E"} trend={resumo.trends?.saldo} />
+            <SummaryCard label="A Receber" valor={resumo.aReceber} icon={TrendingUp} color="#10B981" trend={resumo.trends?.aReceber} />
+            <SummaryCard label="A Pagar" valor={resumo.aPagar} icon={TrendingDown} color="#F43F5E" trend={resumo.trends?.aPagar} />
+            <SummaryCard label="Economia" valor={resumo.economia} icon={PiggyBank} color="#6366F1" trend={resumo.trends?.economia} />
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
@@ -95,7 +113,24 @@ export default function FinanceiroPage() {
         )}
       </motion.div>
 
-      {/* Charts */}
+      {/* Progresso e Projeção */}
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
+        {progresso ? <ProgressoMesCard data={progresso} /> : <Skeleton className="h-32 rounded-2xl" />}
+        {mediaDiaria ? <MediaDiariaCard data={mediaDiaria} /> : <Skeleton className="h-36 rounded-2xl" />}
+      </motion.div>
+
+      {/* Composição */}
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
+        {fixasVar ? <FixasVsVariaveisChart data={fixasVar} /> : <Skeleton className="h-32 rounded-2xl" />}
+        {cartaoVista ? <CartaoVsAVistaChart data={cartaoVista} /> : <Skeleton className="h-32 rounded-2xl" />}
+      </motion.div>
+
+      {/* Alertas de estouro */}
+      <motion.div variants={item}>
+        {estouradas ? <CategoriasEstouradas data={estouradas} /> : <Skeleton className="h-28 rounded-2xl" />}
+      </motion.div>
+
+      {/* Charts de Despesa */}
       <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl bg-white border p-5 shadow-sm">
           <h2 className="font-display font-bold text-lg mb-3">Despesas por Categoria</h2>
@@ -104,6 +139,21 @@ export default function FinanceiroPage() {
         <div className="rounded-2xl bg-white border p-5 shadow-sm">
           <h2 className="font-display font-bold text-lg mb-3">Últimos 6 meses</h2>
           {historico ? <HistoryChart data={historico} /> : <Skeleton className="h-[280px]" />}
+        </div>
+      </motion.div>
+
+      {/* Charts de Receita */}
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl bg-white border p-5 shadow-sm">
+          <h2 className="font-display font-bold text-lg mb-3">Receitas por Categoria</h2>
+          {receitasPorCategoria ? <CategoryPieChart data={receitasPorCategoria} /> : <Skeleton className="h-[280px]" />}
+        </div>
+        <div className="rounded-2xl bg-white border p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display font-bold text-lg">Top Pagadores</h2>
+            <Link href="/financeiro/relatorios?tab=receitas" className="text-xs text-primary hover:underline">Ver relatório →</Link>
+          </div>
+          {topPagadores ? <TopPagadoresChart data={topPagadores.itens} /> : <Skeleton className="h-[280px]" />}
         </div>
       </motion.div>
 

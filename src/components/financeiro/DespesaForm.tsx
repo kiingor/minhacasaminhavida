@@ -10,27 +10,46 @@ import { Button } from "@/components/ui/button";
 import { parseBRL } from "@/lib/formatters";
 import { Plus, X } from "lucide-react";
 
-interface Props {
-  onClose: () => void;
+interface EditData {
+  _id: Id<"despesas">;
+  descricao: string;
+  valor: number;
+  tipo: "fixa" | "parcelada" | "avulsa";
+  categoriaId: Id<"categorias">;
+  pessoaId?: Id<"pessoas">;
+  dataVencimento: string;
+  totalParcelas?: number;
+  parcelaAtual?: number;
+  cartao?: string;
+  recorrente?: boolean;
+  observacao?: string;
 }
 
-export function DespesaForm({ onClose }: Props) {
+interface Props {
+  onClose: () => void;
+  editData?: EditData;
+}
+
+export function DespesaForm({ onClose, editData }: Props) {
   const token = useSessionToken();
   const create = useMutation(api.financeiro.despesas.create);
+  const update = useMutation(api.financeiro.despesas.update);
   const criarCategoria = useMutation(api.financeiro.categorias.create);
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token, tipo: "despesa" } : "skip");
   const pessoas = useQuery(api.pessoas.list, token ? { sessionToken: token } : "skip");
   const cartoes = useQuery(api.financeiro.cartoes.list, token ? { sessionToken: token } : "skip");
 
-  const [descricao, setDescricao] = useState("");
-  const [valor, setValor] = useState("");
-  const [tipo, setTipo] = useState<"fixa" | "parcelada" | "avulsa">("avulsa");
-  const [categoriaId, setCategoriaId] = useState<Id<"categorias"> | "">("");
-  const [pessoaId, setPessoaId] = useState<Id<"pessoas"> | "">("");
-  const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().slice(0, 10));
-  const [totalParcelas, setTotalParcelas] = useState("2");
-  const [cartao, setCartao] = useState("");
-  const [observacao, setObservacao] = useState("");
+  const isEditing = !!editData;
+
+  const [descricao, setDescricao] = useState(editData?.descricao ?? "");
+  const [valor, setValor] = useState(editData ? (editData.valor / 100).toFixed(2).replace(".", ",") : "");
+  const [tipo, setTipo] = useState<"fixa" | "parcelada" | "avulsa">(editData?.tipo ?? "avulsa");
+  const [categoriaId, setCategoriaId] = useState<Id<"categorias"> | "">(editData?.categoriaId ?? "");
+  const [pessoaId, setPessoaId] = useState<Id<"pessoas"> | "">(editData?.pessoaId ?? "");
+  const [dataVencimento, setDataVencimento] = useState(editData?.dataVencimento ?? new Date().toISOString().slice(0, 10));
+  const [totalParcelas, setTotalParcelas] = useState(editData?.totalParcelas?.toString() ?? "2");
+  const [cartao, setCartao] = useState(editData?.cartao ?? "");
+  const [observacao, setObservacao] = useState(editData?.observacao ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -53,31 +72,57 @@ export function DespesaForm({ onClose }: Props) {
     }
   }
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const valorCent = parseBRL(valor);
-    if (!descricao.trim() || valorCent <= 0 || !categoriaId) {
-      setError("Preencha descrição, valor e categoria.");
+    const errors: Record<string, string> = {};
+    if (!descricao.trim()) errors.descricao = "Informe a descrição";
+    if (valorCent <= 0) errors.valor = "Informe um valor maior que zero";
+    if (!categoriaId) errors.categoria = "Selecione uma categoria";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError("");
       return;
     }
+    setFieldErrors({});
     if (!token) { setError("Não autenticado."); return; }
     setLoading(true);
     setError("");
     try {
-      await create({
-        sessionToken: token,
-        descricao,
-        valor: valorCent,
-        tipo,
-        categoriaId: categoriaId as Id<"categorias">,
-        pessoaId: pessoaId ? (pessoaId as Id<"pessoas">) : undefined,
-        dataVencimento,
-        totalParcelas: tipo === "parcelada" ? parseInt(totalParcelas) || 2 : undefined,
-        parcelaAtual: tipo === "parcelada" ? 1 : undefined,
-        cartao: cartao || undefined,
-        recorrente: tipo === "fixa",
-        observacao: observacao || undefined,
-      });
+      if (isEditing) {
+        await update({
+          sessionToken: token,
+          id: editData._id,
+          descricao,
+          valor: valorCent,
+          tipo,
+          categoriaId: categoriaId as Id<"categorias">,
+          pessoaId: pessoaId ? (pessoaId as Id<"pessoas">) : undefined,
+          dataVencimento,
+          totalParcelas: tipo === "parcelada" ? parseInt(totalParcelas) || 2 : undefined,
+          parcelaAtual: tipo === "parcelada" ? (editData.parcelaAtual ?? 1) : undefined,
+          cartao: cartao || undefined,
+          recorrente: tipo === "fixa",
+          observacao: observacao || undefined,
+        });
+      } else {
+        await create({
+          sessionToken: token,
+          descricao,
+          valor: valorCent,
+          tipo,
+          categoriaId: categoriaId as Id<"categorias">,
+          pessoaId: pessoaId ? (pessoaId as Id<"pessoas">) : undefined,
+          dataVencimento,
+          totalParcelas: tipo === "parcelada" ? parseInt(totalParcelas) || 2 : undefined,
+          parcelaAtual: tipo === "parcelada" ? 1 : undefined,
+          cartao: cartao || undefined,
+          recorrente: tipo === "fixa",
+          observacao: observacao || undefined,
+        });
+      }
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao salvar.");
@@ -87,10 +132,16 @@ export function DespesaForm({ onClose }: Props) {
   }
 
   return (
-    <Dialog open onClose={onClose} title="Nova Despesa" className="max-h-[90vh] overflow-y-auto">
+    <Dialog open onClose={onClose} title={isEditing ? "Editar Despesa" : "Nova Despesa"} className="max-h-[90vh] overflow-y-auto">
       <form onSubmit={onSubmit} className="space-y-3">
-        <Input label="Descrição" value={descricao} onChange={(e) => setDescricao(e.target.value)} required />
-        <Input label="Valor (R$)" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" required />
+        <div>
+          <Input label="Descrição" value={descricao} onChange={(e) => { setDescricao(e.target.value); setFieldErrors((f) => ({ ...f, descricao: "" })); }} required />
+          {fieldErrors.descricao && <p className="text-xs text-danger mt-1">{fieldErrors.descricao}</p>}
+        </div>
+        <div>
+          <Input label="Valor (R$)" value={valor} onChange={(e) => { setValor(e.target.value); setFieldErrors((f) => ({ ...f, valor: "" })); }} placeholder="0,00" inputMode="decimal" required />
+          {fieldErrors.valor && <p className="text-xs text-danger mt-1">{fieldErrors.valor}</p>}
+        </div>
 
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-slate-700">Tipo</label>
@@ -130,6 +181,7 @@ export function DespesaForm({ onClose }: Props) {
               <option key={c._id} value={c._id}>{c.nome}</option>
             ))}
           </select>
+          {fieldErrors.categoria && <p className="text-xs text-danger mt-1">{fieldErrors.categoria}</p>}
           {showNovaCategoria && (
             <div className="flex gap-2 items-center p-2.5 rounded-lg bg-slate-50 border">
               <input type="color" value={novaCatCor} onChange={(e) => setNovaCatCor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0 p-0 shrink-0" />
@@ -178,7 +230,7 @@ export function DespesaForm({ onClose }: Props) {
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="flex-1" disabled={loading}>{loading ? "Salvando..." : "Criar"}</Button>
+          <Button type="submit" className="flex-1" disabled={loading}>{loading ? "Salvando..." : isEditing ? "Salvar" : "Criar"}</Button>
         </div>
       </form>
     </Dialog>

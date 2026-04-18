@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -11,18 +11,22 @@ import { XPBar } from "./XPBar";
 import { TaskCheckButton } from "./TaskCheckButton";
 import { AtribuirTarefasModal } from "./AtribuirTarefasModal";
 import { LevelUpModal } from "./LevelUpModal";
+import { AchievementToast, useAchievementToast } from "./AchievementToast";
 import { useLevelUp } from "@/hooks/useLevelUp";
 
 interface Props {
   pessoa: Doc<"pessoas">;
   data: string;
   tvMode?: boolean;
+  filterBusca?: string;
+  filterCategoria?: string;
 }
 
-export function PersonColumn({ pessoa, data, tvMode }: Props) {
+export function PersonColumn({ pessoa, data, tvMode, filterBusca, filterCategoria }: Props) {
   const token = useSessionToken();
   const [showAtribuir, setShowAtribuir] = useState(false);
   const gerarParaData = useMutation(api.tarefas.recorrentes.gerarParaData);
+  const { current: achievementToast, push: pushAchievements } = useAchievementToast();
 
   // Gera lançamentos recorrentes ao carregar/trocar de data
   const geradoKey = useRef("");
@@ -49,8 +53,25 @@ export function PersonColumn({ pessoa, data, tvMode }: Props) {
     setLevelUpEv({ nivelAnterior: ev.nivelAnterior, nivelNovo: ev.nivelNovo, tituloNovo: ev.tituloNovo });
   });
 
-  const total = lancamentos?.length ?? 0;
-  const feitas = lancamentos?.filter((l) => l.completada).length ?? 0;
+  // Filtrar lançamentos por busca e categoria
+  const filteredLancamentos = useMemo(() => {
+    if (!lancamentos) return undefined;
+    if (!filterBusca && !filterCategoria) return lancamentos;
+    return lancamentos.filter((l) => {
+      if (filterBusca) {
+        const term = filterBusca.toLowerCase();
+        if (!l.nomeSnapshot.toLowerCase().includes(term)) return false;
+      }
+      if (filterCategoria) {
+        const cat = (l as any).categoriaSnapshot as string | undefined;
+        if (cat && cat !== filterCategoria) return false;
+      }
+      return true;
+    });
+  }, [lancamentos, filterBusca, filterCategoria]);
+
+  const total = filteredLancamentos?.length ?? 0;
+  const feitas = filteredLancamentos?.filter((l) => l.completada).length ?? 0;
   const pctDia = total > 0 ? Math.round((feitas / total) * 100) : 0;
 
   return (
@@ -101,18 +122,18 @@ export function PersonColumn({ pessoa, data, tvMode }: Props) {
 
         {/* Lista de tarefas */}
         <div className="space-y-1.5">
-          {lancamentos === undefined ? (
+          {filteredLancamentos === undefined ? (
             <div className="rounded-xl bg-white border p-4 text-center text-slate-400 text-sm animate-pulse">
               Carregando...
             </div>
-          ) : lancamentos.length === 0 ? (
+          ) : filteredLancamentos.length === 0 ? (
             <div className="rounded-xl bg-white border border-dashed p-4 text-center text-slate-400 text-sm">
-              Nenhuma tarefa hoje
+              {filterBusca || filterCategoria ? "Nenhuma tarefa com esses filtros" : "Nenhuma tarefa hoje"}
             </div>
           ) : (
-            lancamentos.map((lanc) => (
+            filteredLancamentos.map((lanc) => (
               <div key={lanc._id} className="group relative">
-                <TaskCheckButton lancamento={lanc} />
+                <TaskCheckButton lancamento={lanc} onAchievements={pushAchievements} />
                 <button
                   onClick={() => token && removeLanc({ sessionToken: token, id: lanc._id })}
                   className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-danger rounded transition-all"
@@ -142,6 +163,8 @@ export function PersonColumn({ pessoa, data, tvMode }: Props) {
           onClose={() => setShowAtribuir(false)}
         />
       )}
+
+      <AchievementToast achievement={achievementToast} />
 
       {levelUpEv && (
         <LevelUpModal

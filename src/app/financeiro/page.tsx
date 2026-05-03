@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3, Users } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3, Users, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -59,7 +59,12 @@ export default function FinanceiroPage() {
       </motion.div>
 
       {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-4 lg:grid-cols-8">
+        <Link href="/financeiro/agente" className="rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white p-4 hover:shadow-lg transition-shadow group">
+          <Sparkles size={22} className="group-hover:scale-110 transition-transform" />
+          <div className="font-display font-bold text-base mt-2">Agente IA</div>
+          <div className="text-xs text-white/80">Converse e lance</div>
+        </Link>
         <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-4 hover:shadow-lg transition-shadow group">
           <ArrowDownCircle size={22} className="group-hover:scale-110 transition-transform" />
           <div className="font-display font-bold text-base mt-2">Despesas</div>

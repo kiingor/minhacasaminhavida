@@ -9,6 +9,13 @@
  */
 
 import type * as _helpers from "../_helpers.js";
+import type * as agente_anexos from "../agente/anexos.js";
+import type * as agente_conversas from "../agente/conversas.js";
+import type * as agente_core from "../agente/core.js";
+import type * as agente_drafts from "../agente/drafts.js";
+import type * as agente_prompts from "../agente/prompts.js";
+import type * as agente_tools from "../agente/tools.js";
+import type * as agente_transcricao from "../agente/transcricao.js";
 import type * as auth from "../auth.js";
 import type * as financeiro_analisarFatura from "../financeiro/analisarFatura.js";
 import type * as financeiro_cartoes from "../financeiro/cartoes.js";
@@ -37,6 +44,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   _helpers: typeof _helpers;
+  "agente/anexos": typeof agente_anexos;
+  "agente/conversas": typeof agente_conversas;
+  "agente/core": typeof agente_core;
+  "agente/drafts": typeof agente_drafts;
+  "agente/prompts": typeof agente_prompts;
+  "agente/tools": typeof agente_tools;
+  "agente/transcricao": typeof agente_transcricao;
   auth: typeof auth;
   "financeiro/analisarFatura": typeof financeiro_analisarFatura;
   "financeiro/cartoes": typeof financeiro_cartoes;

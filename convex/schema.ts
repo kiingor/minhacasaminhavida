@@ -255,4 +255,62 @@ export default defineSchema({
     desbloqueadaEm: v.string(),
     familyId: v.string(),
   }).index("by_pessoa", ["pessoaId"]),
+
+  // ============ AGENTE IA ============
+  conversasIA: defineTable({
+    titulo: v.string(),
+    familyId: v.string(),
+    pessoaId: v.optional(v.id("pessoas")),
+    canal: v.union(v.literal("web"), v.literal("whatsapp")),
+    ultimaMensagemEm: v.string(),
+    arquivada: v.boolean(),
+    criadoPor: v.id("users"),
+    criadoEm: v.string(),
+  })
+    .index("by_family", ["familyId"])
+    .index("by_family_atualizada", ["familyId", "ultimaMensagemEm"]),
+
+  mensagensIA: defineTable({
+    conversaId: v.id("conversasIA"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    toolUseBlocks: v.optional(v.string()),
+    toolResultBlocks: v.optional(v.string()),
+    anexos: v.optional(
+      v.array(
+        v.object({
+          tipo: v.union(v.literal("imagem"), v.literal("pdf"), v.literal("audio")),
+          storageId: v.id("_storage"),
+          nome: v.string(),
+          mediaType: v.string(),
+          transcricao: v.optional(v.string()),
+        })
+      )
+    ),
+    familyId: v.string(),
+    criadoEm: v.string(),
+  }).index("by_conversa", ["conversaId"]),
+
+  draftsLancamento: defineTable({
+    conversaId: v.id("conversasIA"),
+    mensagemId: v.optional(v.id("mensagensIA")),
+    tipo: v.union(
+      v.literal("despesa"),
+      v.literal("receita"),
+      v.literal("marcar_paga"),
+      v.literal("marcar_recebida")
+    ),
+    payload: v.string(),
+    resumo: v.string(),
+    status: v.union(v.literal("pendente"), v.literal("confirmado"), v.literal("cancelado")),
+    despesaIdCriada: v.optional(v.id("despesas")),
+    receitaIdCriada: v.optional(v.id("receitas")),
+    erro: v.optional(v.string()),
+    familyId: v.string(),
+    criadoPor: v.id("users"),
+    criadoEm: v.string(),
+    resolvidoEm: v.optional(v.string()),
+  })
+    .index("by_conversa", ["conversaId"])
+    .index("by_conversa_status", ["conversaId", "status"]),
 });

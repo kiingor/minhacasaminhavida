@@ -61,6 +61,9 @@ export default function DespesasPage() {
         ) return false;
       }
       return true;
+    }).sort((a, b) => {
+      if (a.pago !== b.pago) return a.pago ? 1 : -1;
+      return a.dataVencimento.localeCompare(b.dataVencimento);
     });
   }, [despesas, filtroStatus, busca, catMap]);
 

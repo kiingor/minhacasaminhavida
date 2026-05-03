@@ -138,35 +138,57 @@ export const processar = action({
     const ultimas = historicoSemAtual.slice(-MAX_HISTORICO_MENSAGENS);
 
     // 6) Montar mensagens para Anthropic
+    // Para mensagens do assistant que usaram tools, expandimos em três turnos:
+    //   assistant: [tool_use blocks]
+    //   user:      [tool_result blocks]   <- precisa vir IMEDIATAMENTE depois
+    //   assistant: [texto final]
+    // Caso contrário, a Anthropic devolve 400: "tool_use ids without tool_result blocks".
     const messages: AnthropicMessage[] = [];
     for (const m of ultimas) {
-      // Histórico: incluímos tool_use/tool_result se houver, para coerência do contexto
       if (m.role === "assistant") {
-        const blocks: ContentBlock[] = [];
-        if (m.content) blocks.push({ type: "text", text: m.content });
+        let toolUses: any[] = [];
+        let toolResults: any[] = [];
         if (m.toolUseBlocks) {
-          try {
-            const arr = JSON.parse(m.toolUseBlocks);
-            for (const t of arr) blocks.push({ type: "tool_use", id: t.id, name: t.name, input: t.input });
-          } catch {}
+          try { toolUses = JSON.parse(m.toolUseBlocks); } catch {}
         }
-        if (blocks.length > 0) messages.push({ role: "assistant", content: blocks });
-      } else {
-        const blocks: ContentBlock[] = [];
         if (m.toolResultBlocks) {
-          try {
-            const arr = JSON.parse(m.toolResultBlocks);
-            for (const t of arr)
-              blocks.push({
-                type: "tool_result",
+          try { toolResults = JSON.parse(m.toolResultBlocks); } catch {}
+        }
+
+        if (toolUses.length > 0) {
+          messages.push({
+            role: "assistant",
+            content: toolUses.map((t: any) => ({
+              type: "tool_use" as const,
+              id: t.id,
+              name: t.name,
+              input: t.input ?? {},
+            })),
+          });
+          if (toolResults.length > 0) {
+            messages.push({
+              role: "user",
+              content: toolResults.map((t: any) => ({
+                type: "tool_result" as const,
                 tool_use_id: t.tool_use_id,
                 content: t.content,
                 is_error: t.is_error,
-              });
-          } catch {}
+              })),
+            });
+          }
         }
-        if (m.content) blocks.push({ type: "text", text: m.content });
-        if (blocks.length > 0) messages.push({ role: "user", content: blocks });
+
+        if (m.content) {
+          messages.push({
+            role: "assistant",
+            content: [{ type: "text" as const, text: m.content }],
+          });
+        }
+      } else {
+        // Mensagens de user no DB são sempre texto simples vindo do humano.
+        if (m.content) {
+          messages.push({ role: "user", content: m.content });
+        }
       }
     }
 

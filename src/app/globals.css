@@ -34,3 +34,28 @@ body {
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Estilos de impressao (usados na pagina Money Date). */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+  }
+  html, body {
+    background: white !important;
+    color: #1e293b !important;
+  }
+  /* Esconde sidebar desktop e bottom-nav mobile */
+  aside, .print-hide-shell {
+    display: none !important;
+  }
+  /* O AppShell empurra o conteudo com padding interno — zeramos pra imprimir */
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  main > div {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}

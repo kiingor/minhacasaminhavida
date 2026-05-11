@@ -1,14 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Wallet, ListChecks, Users, Menu, LogOut } from "lucide-react";
+import { Home, Wallet, ListChecks, Users, Menu, LogOut, Briefcase, MessageSquare, CalendarClock } from "lucide-react";
 import { useMutation } from "convex/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
-import { useSession } from "@/contexts/SessionContext";
+import { useSession, useSessionToken } from "@/contexts/SessionContext";
 import { cn } from "@/lib/utils";
+import { NotificacoesBell } from "@/components/notificacoes/NotificacoesBell";
 
-const nav = [
+const navFamilia = [
   { href: "/", label: "Início", icon: Home },
   { href: "/financeiro", label: "Finanças", icon: Wallet },
   { href: "/tarefas", label: "Tarefas", icon: ListChecks },
@@ -16,11 +17,34 @@ const nav = [
   { href: "/configuracoes", label: "Menu", icon: Menu },
 ];
 
+// Marco 3.E - menu reduzido para consultores
+const navConsultor = [
+  { href: "/consultor", label: "Clientes", icon: Briefcase },
+  { href: "/consultor/comentarios", label: "Comentários", icon: MessageSquare },
+  { href: "/consultor/agenda", label: "Agenda", icon: CalendarClock },
+];
+
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const { session, setSession } = useSession();
+  const token = useSessionToken();
   const logoutMutation = useMutation(api.auth.logout);
+  const verificarEventos = useMutation(api.financeiro.notificacoesEngine.verificarEventos);
+  const eventosVerificados = useRef(false);
+
+  const isConsultor = session?.role === "consultor";
+  const nav = isConsultor ? navConsultor : navFamilia;
+
+  // Dispara deteccao de eventos uma vez por sessao do usuario.
+  // Consultor nao tem dados financeiros proprios — pular.
+  useEffect(() => {
+    if (!token || eventosVerificados.current || isConsultor) return;
+    eventosVerificados.current = true;
+    verificarEventos({ sessionToken: token }).catch(() => {
+      // silencioso — engine nao deve quebrar a UI
+    });
+  }, [token, verificarEventos, isConsultor]);
 
   async function handleLogout() {
     if (session?.token) {
@@ -84,13 +108,21 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main — rola independente da sidebar */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-0 relative">
+        {/* Sino de notificacoes (Marco 3.C) — fixo no topo direito do main */}
+        {!isConsultor && (
+          <div className="sticky top-3 z-40 flex justify-end pr-4 md:pr-8 pointer-events-none h-0">
+            <div className="pointer-events-auto">
+              <NotificacoesBell />
+            </div>
+          </div>
+        )}
         <div className="p-4 md:p-8 max-w-7xl mx-auto">{children}</div>
       </main>
 
       {/* Bottom nav (mobile) — Liquid Glass */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 mx-2 mb-2 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-[0_-4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] flex justify-around pt-2"
+        className="md:hidden print-hide-shell fixed bottom-0 inset-x-0 z-40 mx-2 mb-2 rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 shadow-[0_-4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] flex justify-around pt-2"
         style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
       >
         {nav.map(({ href, label, icon: Icon }) => {
@@ -116,26 +148,56 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RedirectToLogin() {
+function RedirectTo({ path: target }: { path: string }) {
   const router = useRouter();
-  useEffect(() => { router.push("/login"); }, [router]);
+  useEffect(() => {
+    router.push(target);
+  }, [router, target]);
   return null;
+}
+
+// Paginas que pertencem ao app FAMILIA (consultor nao deve acessar)
+const familiaOnlyPaths = [
+  "/financeiro",
+  "/tarefas",
+  "/pessoas",
+  "/notificacoes",
+  "/aprender",
+];
+
+function isFamiliaOnlyPath(p: string): boolean {
+  return familiaOnlyPaths.some((root) => p === root || p.startsWith(`${root}/`));
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { token } = useSession();
+  const { token, session } = useSession();
 
   // Páginas públicas (sem shell, sem auth)
   if (path === "/login") return <>{children}</>;
 
   // Páginas que precisam de auth mas sem sidebar/nav (ex: modo TV)
   if (path.startsWith("/tv")) {
-    if (!token) return <RedirectToLogin />;
+    if (!token) return <RedirectTo path="/login" />;
     return <>{children}</>;
   }
 
-  if (!token) return <RedirectToLogin />;
+  if (!token) return <RedirectTo path="/login" />;
+
+  // Marco 3.E - Roteamento por tipo de usuario.
+  const isConsultor = session?.role === "consultor";
+
+  // Consultor tentando acessar /, /financeiro, /tarefas, etc. -> /consultor
+  if (isConsultor) {
+    if (path === "/" || isFamiliaOnlyPath(path)) {
+      return <RedirectTo path="/consultor" />;
+    }
+  } else {
+    // User da familia tentando acessar /consultor -> redireciona para /
+    if (path === "/consultor" || path.startsWith("/consultor/")) {
+      return <RedirectTo path="/" />;
+    }
+  }
 
   return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }

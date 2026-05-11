@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Mode = "login" | "register";
+type RegisterTipo = "familia_nova" | "familia_existente" | "consultor";
 
 export default function LoginPage() {
   const { setSession } = useSession();
@@ -23,7 +24,7 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [familyCode, setFamilyCode] = useState("");
-  const [entrarFamilia, setEntrarFamilia] = useState(false);
+  const [registerTipo, setRegisterTipo] = useState<RegisterTipo>("familia_nova");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,7 +34,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      let result: { token: string; familyId: string; name: string; role: "admin" | "member" };
+      let result: { token: string; familyId: string; name: string; role: "admin" | "member" | "consultor" };
       if (mode === "login") {
         result = await loginMutation({ email, password });
       } else {
@@ -41,12 +42,15 @@ export default function LoginPage() {
           name,
           email,
           password,
-          familyName: entrarFamilia ? undefined : familyName || `Família de ${name}`,
-          familyCode: entrarFamilia ? familyCode.toUpperCase() : undefined,
+          familyName:
+            registerTipo === "familia_nova" ? familyName || `Família de ${name}` : undefined,
+          familyCode:
+            registerTipo === "familia_existente" ? familyCode.toUpperCase() : undefined,
+          asConsultor: registerTipo === "consultor",
         });
       }
       setSession({ token: result.token, name: result.name, familyId: result.familyId, role: result.role });
-      router.push("/");
+      router.push(result.role === "consultor" ? "/consultor" : "/");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes("senha") || msg.toLowerCase().includes("email")) {
@@ -124,26 +128,34 @@ export default function LoginPage() {
 
             {mode === "register" && (
               <div className="space-y-2">
-                <div className="flex gap-2 pt-1">
+                <div className="grid grid-cols-3 gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => setEntrarFamilia(false)}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${!entrarFamilia ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
+                    onClick={() => setRegisterTipo("familia_nova")}
+                    className={`py-2 rounded-lg border text-[11px] font-medium transition-colors ${registerTipo === "familia_nova" ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
                   >
-                    Criar nova família
+                    Nova família
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEntrarFamilia(true)}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${entrarFamilia ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
+                    onClick={() => setRegisterTipo("familia_existente")}
+                    className={`py-2 rounded-lg border text-[11px] font-medium transition-colors ${registerTipo === "familia_existente" ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
                   >
-                    Entrar com código
+                    Com código
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegisterTipo("consultor")}
+                    className={`py-2 rounded-lg border text-[11px] font-medium transition-colors ${registerTipo === "consultor" ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
+                  >
+                    Consultor
                   </button>
                 </div>
 
-                {!entrarFamilia ? (
+                {registerTipo === "familia_nova" && (
                   <Input label="Nome da família" value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Ex: Família Silva" />
-                ) : (
+                )}
+                {registerTipo === "familia_existente" && (
                   <Input
                     label="Código da família"
                     value={familyCode}
@@ -151,6 +163,11 @@ export default function LoginPage() {
                     placeholder="Ex: AB12CD34"
                     required
                   />
+                )}
+                {registerTipo === "consultor" && (
+                  <p className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    Conta de consultor: voce podera acompanhar varias famílias mediante convite delas.
+                  </p>
                 )}
               </div>
             )}

@@ -2,10 +2,12 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Volume2, VolumeX, BookOpen, Tags } from "lucide-react";
+import { Volume2, VolumeX, BookOpen, Tags, Wallet, Plus, Heart, Bell, Briefcase } from "lucide-react";
+import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
+import { ContaForm } from "@/components/financeiro/ContaForm";
 import { isSoundEnabled, setSoundEnabled } from "@/lib/sounds";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
@@ -16,11 +18,14 @@ export default function ConfiguracoesPage() {
   const [sound, setSound] = useState(true);
   const [seeded, setSeeded] = useState(false);
   const [seededCat, setSeededCat] = useState(false);
+  const [showContaForm, setShowContaForm] = useState(false);
 
   const seedTarefas = useMutation(api.tarefas.tarefasCatalogo.seedDefaults);
   const seedCategorias = useMutation(api.financeiro.categorias.seedDefaults);
   const tarefas = useQuery(api.tarefas.tarefasCatalogo.list, token ? { sessionToken: token } : "skip");
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token } : "skip");
+  const contas = useQuery(api.financeiro.contas.list, token ? { sessionToken: token } : "skip");
+  const perfilCasal = useQuery(api.pessoas.perfilCasal, token ? { sessionToken: token } : "skip");
 
   useEffect(() => {
     setSound(isSoundEnabled());
@@ -100,6 +105,67 @@ export default function ConfiguracoesPage() {
           {seededCat ? "✓ Criado!" : "Criar categorias padrão"}
         </Button>
       </motion.div>
+
+      {/* Modo Casal (Marco 3.A) */}
+      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm space-y-3">
+        <h2 className="font-display font-bold text-lg flex items-center gap-2">
+          <Heart size={20} className="text-rose-500" /> Modo Casal
+        </h2>
+        <p className="text-sm text-slate-500">
+          {perfilCasal !== undefined
+            ? `${perfilCasal.length} ${perfilCasal.length === 1 ? "perfil vinculado" : "perfis vinculados"} ao núcleo familiar.`
+            : "Carregando..."}
+        </p>
+        <Link href="/configuracoes/casal">
+          <Button variant="outline">Gerenciar perfis →</Button>
+        </Link>
+      </motion.div>
+
+      {/* Notificações (Marco 3.C) */}
+      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm space-y-3">
+        <h2 className="font-display font-bold text-lg flex items-center gap-2">
+          <Bell size={20} className="text-primary" /> Notificações
+        </h2>
+        <p className="text-sm text-slate-500">
+          Configure quais alertas você quer receber sobre orçamento, metas e Money Date.
+        </p>
+        <Link href="/notificacoes/preferencias">
+          <Button variant="outline">Gerenciar preferências →</Button>
+        </Link>
+      </motion.div>
+
+      {/* Consultor (Marco 3.E) */}
+      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm space-y-3">
+        <h2 className="font-display font-bold text-lg flex items-center gap-2">
+          <Briefcase size={20} className="text-primary" /> Consultor financeiro
+        </h2>
+        <p className="text-sm text-slate-500">
+          Convide um consultor para acompanhar suas finanças. Ele vê seus dados em modo leitura.
+        </p>
+        <Link href="/configuracoes/consultor">
+          <Button variant="outline">Gerenciar acesso →</Button>
+        </Link>
+      </motion.div>
+
+      {/* Contas bancárias */}
+      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm space-y-3">
+        <h2 className="font-display font-bold text-lg flex items-center gap-2">
+          <Wallet size={20} className="text-primary" /> Contas Bancárias
+        </h2>
+        <p className="text-sm text-slate-500">
+          {contas !== undefined ? `${contas.length} ${contas.length === 1 ? "conta cadastrada" : "contas cadastradas"}.` : "Carregando..."}
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          <Link href="/financeiro/contas">
+            <Button variant="outline">Gerenciar contas →</Button>
+          </Link>
+          <Button onClick={() => setShowContaForm(true)}>
+            <Plus size={16} /> Nova Conta
+          </Button>
+        </div>
+      </motion.div>
+
+      {showContaForm && <ContaForm onClose={() => setShowContaForm(false)} />}
 
     </motion.div>
   );

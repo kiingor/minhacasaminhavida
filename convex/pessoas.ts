@@ -121,3 +121,40 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+// Marco 3.A — Lista perfis de login da familia (para tela "Modo Casal").
+// Retorna users com info de pessoa vinculada e role.
+export const perfilCasal = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_family", (q) => q.eq("familyId", user.familyId))
+      .collect();
+
+    const pessoaIds = users
+      .map((u) => u.pessoaId)
+      .filter((id): id is NonNullable<typeof id> => !!id);
+    const pessoasArr = await Promise.all(pessoaIds.map((id) => ctx.db.get(id)));
+    const pessoaMap = new Map(
+      pessoasArr.filter((p): p is NonNullable<typeof p> => !!p).map((p) => [p._id as string, p])
+    );
+
+    return users.map((u) => {
+      const pessoa = u.pessoaId ? pessoaMap.get(u.pessoaId as string) : undefined;
+      return {
+        userId: u._id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        pessoaId: u.pessoaId ?? null,
+        pessoaNome: pessoa ? (pessoa.apelido ?? pessoa.nome) : null,
+        pessoaFotoUrl: pessoa?.fotoUrl ?? null,
+        pessoaCorTema: pessoa?.corTema ?? null,
+        pessoaTipo: pessoa?.tipo ?? null,
+        ehAtual: u._id === user._id,
+      };
+    });
+  },
+});

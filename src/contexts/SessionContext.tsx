@@ -5,7 +5,7 @@ interface Session {
   token: string;
   name: string;
   familyId: string;
-  role: "admin" | "member";
+  role: "admin" | "member" | "consultor";
 }
 
 interface SessionContextValue {

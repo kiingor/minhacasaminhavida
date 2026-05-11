@@ -2,43 +2,131 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { Wallet, TrendingUp, TrendingDown, PiggyBank, AlertCircle, ArrowDownCircle, ArrowUpCircle, Target, Tag, CreditCard, BarChart3, Users, Sparkles } from "lucide-react";
+import {
+  Target,
+  Sparkles,
+  ListTree,
+  Gauge,
+  Coffee,
+} from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { MonthSelector } from "@/components/financeiro/MonthSelector";
-import { SummaryCard } from "@/components/financeiro/SummaryCard";
-import { CategoryPieChart } from "@/components/financeiro/CategoryPieChart";
-import { HistoryChart } from "@/components/financeiro/HistoryChart";
-import { TopPagadoresChart } from "@/components/financeiro/TopPagadoresChart";
 import { ProgressoMesCard } from "@/components/financeiro/ProgressoMesCard";
-import { MediaDiariaCard } from "@/components/financeiro/MediaDiariaCard";
 import { FixasVsVariaveisChart } from "@/components/financeiro/FixasVsVariaveisChart";
 import { CartaoVsAVistaChart } from "@/components/financeiro/CartaoVsAVistaChart";
 import { CategoriasEstouradas } from "@/components/financeiro/CategoriasEstouradas";
+import { SaldoEfetivadoProjetadoCard } from "@/components/financeiro/SaldoEfetivadoProjetadoCard";
+import { IndicadoresSaudeCard } from "@/components/financeiro/IndicadoresSaudeCard";
+import { PagadorCasalChart } from "@/components/financeiro/PagadorCasalChart";
+import { DivisaoProporcionalCard } from "@/components/financeiro/DivisaoProporcionalCard";
+import { DicaDoDia } from "@/components/educacao/DicaDoDia";
+import { AcoesRapidas } from "@/components/financeiro/AcoesRapidas";
+import { AtalhosSecundarios } from "@/components/financeiro/AtalhosSecundarios";
+import { FaixaResumoMes } from "@/components/financeiro/FaixaResumoMes";
+import { PainelDiario } from "@/components/financeiro/PainelDiario";
+import { SecaoColapsavel } from "@/components/financeiro/SecaoColapsavel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { currentMonth } from "@/lib/monthUtils";
-import { formatBRL, formatDate } from "@/lib/formatters";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
+
+interface AtalhoPrimario {
+  href: string;
+  label: string;
+  descricao: string;
+  Icon: typeof Sparkles;
+  gradiente: string;
+}
+
+const ATALHOS_PRIMARIOS: AtalhoPrimario[] = [
+  {
+    href: "/financeiro/agente",
+    label: "Agente IA",
+    descricao: "Converse e lance",
+    Icon: Sparkles,
+    gradiente: "from-violet-500 to-fuchsia-600",
+  },
+  {
+    href: "/financeiro/lancamentos",
+    label: "Lançamentos",
+    descricao: "Despesas e receitas",
+    Icon: ListTree,
+    gradiente: "from-rose-500 via-amber-500 to-emerald-500",
+  },
+  {
+    href: "/financeiro/money-date",
+    label: "Money Date",
+    descricao: "Pauta do casal",
+    Icon: Coffee,
+    gradiente: "from-amber-500 to-orange-600",
+  },
+  {
+    href: "/financeiro/orcamento",
+    label: "Orçamento",
+    descricao: "Limites e semáforo",
+    Icon: Gauge,
+    gradiente: "from-sky-500 to-cyan-600",
+  },
+  {
+    href: "/financeiro/metas",
+    label: "Metas",
+    descricao: "Poupança",
+    Icon: Target,
+    gradiente: "from-emerald-500 to-teal-600",
+  },
+];
 
 export default function FinanceiroPage() {
   const token = useSessionToken();
   const [mes, setMes] = useState(currentMonth());
 
-  const resumo = useQuery(api.financeiro.dashboardFinanceiro.resumoMes, token ? { sessionToken: token, mes } : "skip");
-  const porCategoria = useQuery(api.financeiro.dashboardFinanceiro.despesasPorCategoria, token ? { sessionToken: token, mes } : "skip");
-  const historico = useQuery(api.financeiro.dashboardFinanceiro.historico6Meses, token ? { sessionToken: token, mesAtual: mes } : "skip");
-  const receitasPorCategoria = useQuery(api.financeiro.dashboardFinanceiro.receitasPorCategoria, token ? { sessionToken: token, mes } : "skip");
-  const topPagadores = useQuery(api.financeiro.dashboardFinanceiro.receitasPorPagador, token ? { sessionToken: token, mes, limit: 5 } : "skip");
-  const progresso = useQuery(api.financeiro.dashboardFinanceiro.progressoMes, token ? { sessionToken: token, mes } : "skip");
-  const mediaDiaria = useQuery(api.financeiro.dashboardFinanceiro.mediaDiariaProjecao, token ? { sessionToken: token, mes } : "skip");
-  const fixasVar = useQuery(api.financeiro.dashboardFinanceiro.fixasVsVariaveis, token ? { sessionToken: token, mes } : "skip");
-  const cartaoVista = useQuery(api.financeiro.dashboardFinanceiro.cartaoVsAVista, token ? { sessionToken: token, mes } : "skip");
-  const estouradas = useQuery(api.financeiro.dashboardFinanceiro.categoriasEstouradas, token ? { sessionToken: token, mes } : "skip");
-  const proximas = useQuery(api.financeiro.dashboardFinanceiro.proximasContas, token ? { sessionToken: token } : "skip");
-  const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token } : "skip");
+  const resumo = useQuery(
+    api.financeiro.dashboardFinanceiro.resumoMes,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const progresso = useQuery(
+    api.financeiro.dashboardFinanceiro.progressoMes,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const fixasVar = useQuery(
+    api.financeiro.dashboardFinanceiro.fixasVsVariaveis,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const cartaoVista = useQuery(
+    api.financeiro.dashboardFinanceiro.cartaoVsAVista,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const estouradas = useQuery(
+    api.financeiro.dashboardFinanceiro.categoriasEstouradas,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const saldoEfetivado = useQuery(
+    api.financeiro.dashboardFinanceiro.saldoEfetivado,
+    token ? { sessionToken: token } : "skip"
+  );
+  const saldoProjetado = useQuery(
+    api.financeiro.dashboardFinanceiro.saldoProjetado,
+    token ? { sessionToken: token } : "skip"
+  );
+  const indicadoresSaude = useQuery(
+    api.financeiro.dashboardFinanceiro.indicadoresSaude,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const pagadorCasal = useQuery(
+    api.financeiro.dashboardFinanceiro.despesasPorPagadorCasal,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const divisaoProporcional = useQuery(
+    api.financeiro.dashboardFinanceiro.divisaoProporcionalSugerida,
+    token ? { sessionToken: token, mes } : "skip"
+  );
+  const categorias = useQuery(
+    api.financeiro.categorias.list,
+    token ? { sessionToken: token } : "skip"
+  );
   const seedCategorias = useMutation(api.financeiro.categorias.seedDefaults);
 
   // Auto-seed categorias padrão na primeira vez
@@ -48,9 +136,20 @@ export default function FinanceiroPage() {
     }
   }, [token, categorias, seedCategorias]);
 
+  const temCategoriasEstouradas = !!estouradas && estouradas.length > 0;
+
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
-      <motion.div variants={item} className="flex flex-wrap items-center justify-between gap-3">
+    <motion.div
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="space-y-6"
+    >
+      {/* 1. Header */}
+      <motion.div
+        variants={item}
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
         <div>
           <h1 className="font-display text-3xl font-extrabold">Finanças</h1>
           <p className="text-slate-500">Visão geral da família</p>
@@ -58,136 +157,117 @@ export default function FinanceiroPage() {
         <MonthSelector mes={mes} onChange={setMes} />
       </motion.div>
 
-      {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-3 md:grid-cols-4 lg:grid-cols-8">
-        <Link href="/financeiro/agente" className="rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white p-4 hover:shadow-lg transition-shadow group">
-          <Sparkles size={22} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-base mt-2">Agente IA</div>
-          <div className="text-xs text-white/80">Converse e lance</div>
-        </Link>
-        <Link href="/financeiro/despesas" className="rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white p-4 hover:shadow-lg transition-shadow group">
-          <ArrowDownCircle size={22} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-base mt-2">Despesas</div>
-          <div className="text-xs text-white/80">Lançar e controlar</div>
-        </Link>
-        <Link href="/financeiro/receitas" className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-4 hover:shadow-lg transition-shadow group">
-          <ArrowUpCircle size={22} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-base mt-2">Receitas</div>
-          <div className="text-xs text-white/80">Entradas do mês</div>
-        </Link>
-        <Link href="/financeiro/metas" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
-          <Target size={22} className="text-primary group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-base mt-2">Metas</div>
-          <div className="text-xs text-slate-500">Poupança</div>
-        </Link>
-        <Link href="/financeiro/cartoes" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
-          <CreditCard size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-base mt-2">Cartões</div>
-          <div className="text-xs text-slate-500">Gerenciar</div>
-        </Link>
-        <Link href="/financeiro/relatorios" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
-          <BarChart3 size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-base mt-2">Relatórios</div>
-          <div className="text-xs text-slate-500">Análises</div>
-        </Link>
-        <Link href="/financeiro/categorias" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
-          <Tag size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-base mt-2">Categorias</div>
-          <div className="text-xs text-slate-500">Organizar</div>
-        </Link>
-        <Link href="/financeiro/pagadores" className="rounded-xl bg-white border p-4 hover:shadow-md transition-shadow group">
-          <Users size={22} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-base mt-2">Pagadores</div>
-          <div className="text-xs text-slate-500">Quem te paga</div>
-        </Link>
+      {/* 2. Hero: saldo + faixa numerica inline */}
+      <motion.div variants={item} className="space-y-2">
+        <SaldoEfetivadoProjetadoCard
+          efetivado={saldoEfetivado}
+          projetado={saldoProjetado}
+        />
+        <FaixaResumoMes data={resumo ?? undefined} />
       </motion.div>
 
-      {/* Summary cards */}
+      {/* 3. Acoes rapidas */}
       <motion.div variants={item}>
-        {resumo ? (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-            <SummaryCard label="Saldo" valor={resumo.saldo} icon={Wallet} color={resumo.saldo >= 0 ? "#10B981" : "#F43F5E"} trend={resumo.trends?.saldo} />
-            <SummaryCard label="A Receber" valor={resumo.aReceber} icon={TrendingUp} color="#10B981" trend={resumo.trends?.aReceber} />
-            <SummaryCard label="A Pagar" valor={resumo.aPagar} icon={TrendingDown} color="#F43F5E" trend={resumo.trends?.aPagar} />
-            <SummaryCard label="Economia" valor={resumo.economia} icon={PiggyBank} color="#6366F1" trend={resumo.trends?.economia} />
-          </div>
+        <AcoesRapidas />
+      </motion.div>
+
+      {/* 4. Atalhos primarios (5 com gradiente) */}
+      <motion.div
+        variants={item}
+        className="grid gap-3 grid-cols-3 lg:grid-cols-5"
+      >
+        {ATALHOS_PRIMARIOS.map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className={`rounded-xl bg-gradient-to-br ${a.gradiente} text-white p-4 hover:shadow-lg transition-shadow group`}
+          >
+            <a.Icon
+              size={22}
+              className="group-hover:scale-110 transition-transform"
+            />
+            <div className="font-display font-bold text-base mt-2">{a.label}</div>
+            <div className="text-xs text-white/85">{a.descricao}</div>
+          </Link>
+        ))}
+      </motion.div>
+
+      {/* 5. Atalhos secundarios (colapsavel) */}
+      <motion.div variants={item}>
+        <AtalhosSecundarios />
+      </motion.div>
+
+      {/* 6. Categorias estouradas (condicional) */}
+      {temCategoriasEstouradas && (
+        <motion.div variants={item}>
+          <CategoriasEstouradas data={estouradas} />
+        </motion.div>
+      )}
+
+      {/* 7. Painel Diario + Progresso do mes */}
+      <motion.div
+        variants={item}
+        className="grid gap-3 grid-cols-1 md:grid-cols-2"
+      >
+        <PainelDiario />
+        {progresso ? (
+          <ProgressoMesCard data={progresso} />
         ) : (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
-          </div>
+          <Skeleton className="h-32 rounded-2xl" />
         )}
       </motion.div>
 
-      {/* Progresso e Projeção */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        {progresso ? <ProgressoMesCard data={progresso} /> : <Skeleton className="h-32 rounded-2xl" />}
-        {mediaDiaria ? <MediaDiariaCard data={mediaDiaria} /> : <Skeleton className="h-36 rounded-2xl" />}
-      </motion.div>
-
-      {/* Composição */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        {fixasVar ? <FixasVsVariaveisChart data={fixasVar} /> : <Skeleton className="h-32 rounded-2xl" />}
-        {cartaoVista ? <CartaoVsAVistaChart data={cartaoVista} /> : <Skeleton className="h-32 rounded-2xl" />}
-      </motion.div>
-
-      {/* Alertas de estouro */}
+      {/* 8. Indicadores de saude */}
       <motion.div variants={item}>
-        {estouradas ? <CategoriasEstouradas data={estouradas} /> : <Skeleton className="h-28 rounded-2xl" />}
+        <IndicadoresSaudeCard data={indicadoresSaude} />
       </motion.div>
 
-      {/* Charts de Despesa */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <h2 className="font-display font-bold text-lg mb-3">Despesas por Categoria</h2>
-          {porCategoria ? <CategoryPieChart data={porCategoria} /> : <Skeleton className="h-[280px]" />}
-        </div>
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <h2 className="font-display font-bold text-lg mb-3">Últimos 6 meses</h2>
-          {historico ? <HistoryChart data={historico} /> : <Skeleton className="h-[280px]" />}
-        </div>
-      </motion.div>
-
-      {/* Charts de Receita */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <h2 className="font-display font-bold text-lg mb-3">Receitas por Categoria</h2>
-          {receitasPorCategoria ? <CategoryPieChart data={receitasPorCategoria} /> : <Skeleton className="h-[280px]" />}
-        </div>
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display font-bold text-lg">Top Pagadores</h2>
-            <Link href="/financeiro/relatorios?tab=receitas" className="text-xs text-primary hover:underline">Ver relatório →</Link>
+      {/* 9. Secao Casal — colapsavel em mobile */}
+      <motion.div variants={item}>
+        <SecaoColapsavel
+          titulo="Ver divisão do casal"
+          mobileOnly
+          defaultAberto={false}
+        >
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+            {pagadorCasal !== undefined ? (
+              <PagadorCasalChart data={pagadorCasal} />
+            ) : (
+              <Skeleton className="h-64 rounded-2xl" />
+            )}
+            {divisaoProporcional !== undefined ? (
+              <DivisaoProporcionalCard data={divisaoProporcional} />
+            ) : (
+              <Skeleton className="h-64 rounded-2xl" />
+            )}
           </div>
-          {topPagadores ? <TopPagadoresChart data={topPagadores.itens} /> : <Skeleton className="h-[280px]" />}
-        </div>
+        </SecaoColapsavel>
       </motion.div>
 
-      {/* Próximas contas */}
-      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display font-bold text-lg">Próximas Contas</h2>
-          <Link href="/financeiro/despesas" className="text-sm text-primary hover:underline">Ver todas →</Link>
-        </div>
-        {proximas === undefined ? (
-          <Skeleton className="h-32" />
-        ) : proximas.length === 0 ? (
-          <div className="text-center text-slate-400 py-6 text-sm">Nenhuma conta pendente no mês 🎉</div>
-        ) : (
-          <ul className="divide-y">
-            {proximas.map((d) => (
-              <li key={d._id} className="py-2.5 flex items-center justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <AlertCircle size={14} className="text-warning shrink-0" />
-                  <span className="font-medium truncate">{d.descricao}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
-                  <span>{formatDate(d.dataVencimento)}</span>
-                  <span className="font-mono font-semibold text-slate-800">{formatBRL(d.valor)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* 10. Secao Analises (colapsada por padrao) */}
+      <motion.div variants={item}>
+        <SecaoColapsavel
+          titulo="Ver análises detalhadas"
+          defaultAberto={false}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {fixasVar ? (
+              <FixasVsVariaveisChart data={fixasVar} />
+            ) : (
+              <Skeleton className="h-32 rounded-2xl" />
+            )}
+            {cartaoVista ? (
+              <CartaoVsAVistaChart data={cartaoVista} />
+            ) : (
+              <Skeleton className="h-32 rounded-2xl" />
+            )}
+          </div>
+        </SecaoColapsavel>
+      </motion.div>
+
+      {/* 11. Dica do dia — rodape compacto */}
+      <motion.div variants={item}>
+        <DicaDoDia compact />
       </motion.div>
     </motion.div>
   );

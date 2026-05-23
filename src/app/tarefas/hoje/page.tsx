@@ -7,6 +7,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { PersonColumn } from "@/components/tarefas/PersonColumn";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate, todayISO } from "@/lib/formatters";
 
 function shiftDate(iso: string, days: number): string {
@@ -33,46 +34,49 @@ export default function TarefasHojePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-extrabold">Tarefas do Dia</h1>
-          <p className="text-slate-500">Gerencie as tarefas da família</p>
-        </div>
+      <PageHeader
+        backHref="/tarefas"
+        backLabel="Voltar para Tarefas"
+        title="Tarefas do Dia"
+        subtitle="Gerencie as tarefas da família"
+        actions={
+          <>
+            {/* Botão abrir tela cheia em nova guia */}
+            <a
+              href="/tv"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors"
+              title="Abrir tela de tarefas em nova guia (modo TV)"
+            >
+              <ExternalLink size={15} />
+              <span className="hidden sm:inline">Abrir em tela cheia</span>
+            </a>
 
-        {/* Botão abrir tela cheia em nova guia */}
-        <a
-          href="/tv"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors"
-          title="Abrir tela de tarefas em nova guia (modo TV)"
-        >
-          <ExternalLink size={15} />
-          <span className="hidden sm:inline">Abrir em tela cheia</span>
-        </a>
-
-        {/* Seletor de data */}
-        <div className="inline-flex items-center gap-1 rounded-lg border bg-white p-1">
-          <button
-            onClick={() => setData(shiftDate(data, -1))}
-            className="p-1.5 rounded hover:bg-slate-100"
-            aria-label="Dia anterior"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div className="px-3 flex items-center gap-1.5 text-sm font-medium min-w-[100px] justify-center">
-            <CalendarDays size={14} className="text-slate-400" />
-            {dateLabel(data)}
-          </div>
-          <button
-            onClick={() => setData(shiftDate(data, 1))}
-            className="p-1.5 rounded hover:bg-slate-100"
-            aria-label="Próximo dia"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </div>
+            {/* Seletor de data */}
+            <div className="inline-flex items-center gap-1 rounded-lg border bg-white p-1">
+              <button
+                onClick={() => setData(shiftDate(data, -1))}
+                className="p-1.5 rounded hover:bg-slate-100"
+                aria-label="Dia anterior"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="px-3 flex items-center gap-1.5 text-sm font-medium min-w-[100px] justify-center">
+                <CalendarDays size={14} className="text-slate-400" />
+                {dateLabel(data)}
+              </div>
+              <button
+                onClick={() => setData(shiftDate(data, 1))}
+                className="p-1.5 rounded hover:bg-slate-100"
+                aria-label="Próximo dia"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {/* Colunas por pessoa */}
       {pessoas === undefined ? (

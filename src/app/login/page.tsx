@@ -3,13 +3,16 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Home, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
+import { Logo } from "@/components/ui/logo";
 
 type Mode = "login" | "register";
+type RegisterTipo = "familia_nova" | "familia_existente" | "consultor";
 
 export default function LoginPage() {
   const { setSession } = useSession();
@@ -23,7 +26,7 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [familyCode, setFamilyCode] = useState("");
-  const [entrarFamilia, setEntrarFamilia] = useState(false);
+  const [registerTipo, setRegisterTipo] = useState<RegisterTipo>("familia_nova");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,7 +36,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      let result: { token: string; familyId: string; name: string; role: "admin" | "member" };
+      let result: { token: string; familyId: string; name: string; role: "admin" | "member" | "consultor" };
       if (mode === "login") {
         result = await loginMutation({ email, password });
       } else {
@@ -41,57 +44,50 @@ export default function LoginPage() {
           name,
           email,
           password,
-          familyName: entrarFamilia ? undefined : familyName || `Família de ${name}`,
-          familyCode: entrarFamilia ? familyCode.toUpperCase() : undefined,
+          familyName: registerTipo === "familia_nova" ? familyName || `Família de ${name}` : undefined,
+          familyCode: registerTipo === "familia_existente" ? familyCode.toUpperCase() : undefined,
+          asConsultor: registerTipo === "consultor",
         });
       }
       setSession({ token: result.token, name: result.name, familyId: result.familyId, role: result.role });
-      router.push("/");
+      router.push(result.role === "consultor" ? "/consultor" : "/");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes("senha") || msg.toLowerCase().includes("email")) {
-        setError(msg);
-      } else if (msg.includes("já cadastrado")) {
-        setError("Email já cadastrado. Faça login.");
-      } else {
-        setError(msg || "Erro ao autenticar.");
-      }
+      if (msg.toLowerCase().includes("senha") || msg.toLowerCase().includes("email")) setError(msg);
+      else if (msg.includes("já cadastrado")) setError("Email já cadastrado. Faça login.");
+      else setError(msg || "Erro ao autenticar.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1E1B4B] via-[#312E81] to-[#4F46E5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-cream-100 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-coral-200 opacity-40 blur-3xl" />
+      <div className="absolute -bottom-32 -left-20 w-96 h-96 rounded-full bg-cream-300 opacity-50 blur-3xl" />
+
       <motion.div
-        className="w-full max-w-md"
+        className="w-full max-w-md relative"
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", duration: 0.6 }}
       >
-        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
-            <Home size={32} className="text-white" />
-          </div>
-          <h1 className="font-display font-extrabold text-3xl text-white">Minha Casa</h1>
-          <p className="text-white/60 text-sm mt-1">Minha Vida — Gestão familiar gamificada</p>
+          <Logo size={64} className="mx-auto mb-4 shadow-card" />
+          <h1 className="font-display font-extrabold text-3xl text-ink-900">Minha Casa</h1>
+          <p className="text-ink-500 text-sm mt-1">Minha Vida — Gestão familiar gamificada</p>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-2xl space-y-4">
-          {/* Tabs */}
-          <div className="flex rounded-xl bg-slate-100 p-1">
-            {(["login", "register"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setError(""); }}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${mode === m ? "bg-white shadow text-slate-900" : "text-slate-500"}`}
-              >
-                {m === "login" ? "Entrar" : "Cadastrar"}
-              </button>
-            ))}
-          </div>
+        <div className="bg-white rounded-3xl p-6 shadow-card space-y-5">
+          <Segmented<Mode>
+            value={mode}
+            onChange={(m) => { setMode(m); setError(""); }}
+            options={[
+              { value: "login",    label: "Entrar" },
+              { value: "register", label: "Cadastrar" },
+            ]}
+            className="w-full"
+          />
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {mode === "register" && (
@@ -100,8 +96,8 @@ export default function LoginPage() {
 
             <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="seu@email.com" />
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-700">Senha</label>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-ink-500">Senha</label>
               <div className="relative">
                 <input
                   type={showPass ? "text" : "password"}
@@ -110,12 +106,13 @@ export default function LoginPage() {
                   required
                   minLength={6}
                   placeholder="Mínimo 6 caracteres"
-                  className="h-10 w-full rounded-lg border border-slate-300 px-3 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="h-12 w-full rounded-2xl border border-cream-200 bg-white px-4 pr-11 text-sm text-ink-900 outline-none placeholder:text-ink-300 focus:border-coral-400 focus:ring-4 focus:ring-coral-100 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
+                  aria-label={showPass ? "Esconder senha" : "Mostrar senha"}
                 >
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -123,27 +120,32 @@ export default function LoginPage() {
             </div>
 
             {mode === "register" && (
-              <div className="space-y-2">
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setEntrarFamilia(false)}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${!entrarFamilia ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
-                  >
-                    Criar nova família
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEntrarFamilia(true)}
-                    className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${entrarFamilia ? "border-primary bg-primary/5 text-primary" : "border-slate-200 text-slate-500"}`}
-                  >
-                    Entrar com código
-                  </button>
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { v: "familia_nova",      l: "Nova família" },
+                    { v: "familia_existente", l: "Com código" },
+                    { v: "consultor",         l: "Consultor" },
+                  ] as { v: RegisterTipo; l: string }[]).map(({ v, l }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setRegisterTipo(v)}
+                      className={`py-2.5 rounded-full text-[11px] font-semibold transition-colors ${
+                        registerTipo === v
+                          ? "bg-ink-900 text-white"
+                          : "bg-cream-100 text-ink-500 hover:bg-cream-200"
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
                 </div>
 
-                {!entrarFamilia ? (
+                {registerTipo === "familia_nova" && (
                   <Input label="Nome da família" value={familyName} onChange={(e) => setFamilyName(e.target.value)} placeholder="Ex: Família Silva" />
-                ) : (
+                )}
+                {registerTipo === "familia_existente" && (
                   <Input
                     label="Código da família"
                     value={familyCode}
@@ -152,12 +154,17 @@ export default function LoginPage() {
                     required
                   />
                 )}
+                {registerTipo === "consultor" && (
+                  <p className="text-xs text-ink-500 bg-cream-50 border border-cream-200 rounded-2xl px-4 py-3">
+                    Conta de consultor: você poderá acompanhar várias famílias mediante convite delas.
+                  </p>
+                )}
               </div>
             )}
 
             {error && (
               <motion.p
-                className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2"
+                className="text-sm text-ink-900 bg-cream-50 border border-cream-300 rounded-2xl px-4 py-3 font-medium"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >

@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { User } from "lucide-react";
 import { Doc } from "../../../convex/_generated/dataModel";
 import { getTituloByNivel } from "@/lib/levelTitles";
 import { cn } from "@/lib/utils";
@@ -8,9 +7,10 @@ interface Props {
   pessoa: Pick<Doc<"pessoas">, "fotoUrl" | "nome" | "nivelAtual" | "corTema">;
   size?: number;
   className?: string;
+  ring?: boolean;
 }
 
-export function PersonAvatar({ pessoa, size = 40, className }: Props) {
+export function PersonAvatar({ pessoa, size = 40, className, ring = true }: Props) {
   const titulo = getTituloByNivel(pessoa.nivelAtual);
   return (
     <div
@@ -18,7 +18,7 @@ export function PersonAvatar({ pessoa, size = 40, className }: Props) {
       style={{
         width: size,
         height: size,
-        boxShadow: `0 0 0 3px ${titulo.corClasse}`,
+        boxShadow: ring ? `0 0 0 2px ${titulo.corClasse}, 0 0 0 4px #FFFFFF` : undefined,
       }}
     >
       {pessoa.fotoUrl ? (
@@ -31,8 +31,8 @@ export function PersonAvatar({ pessoa, size = 40, className }: Props) {
         />
       ) : (
         <div
-          className="w-full h-full rounded-full flex items-center justify-center text-white text-lg font-bold"
-          style={{ background: pessoa.corTema }}
+          className="w-full h-full rounded-full flex items-center justify-center text-white font-bold"
+          style={{ background: pessoa.corTema, fontSize: Math.round(size * 0.4) }}
         >
           {pessoa.nome.charAt(0).toUpperCase()}
         </div>

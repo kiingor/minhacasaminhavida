@@ -10,6 +10,7 @@ import { PersonAvatar } from "@/components/pessoas/PersonAvatar";
 import { AgendaTimeline } from "@/components/tarefas/AgendaTimeline";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { todayISO, formatDate } from "@/lib/formatters";
 import { calcularAgenda } from "@/lib/agendaCalculator";
 
@@ -83,24 +84,26 @@ export default function AgendaPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-extrabold">Definir Tarefas</h1>
-          <p className="text-slate-500">Encaixe das tarefas no seu horário livre</p>
-        </div>
-        <div className="inline-flex items-center gap-1 rounded-lg border bg-white p-1">
-          <button onClick={() => setData(shiftDate(data, -1))} className="p-1.5 rounded hover:bg-slate-100">
-            <ChevronLeft size={18} />
-          </button>
-          <div className="px-3 flex items-center gap-1.5 text-sm font-medium min-w-[100px] justify-center">
-            <CalendarDays size={14} className="text-slate-400" />
-            {dateLabel(data)}
+      <PageHeader
+        backHref="/tarefas"
+        backLabel="Voltar para Tarefas"
+        title="Definir Tarefas"
+        subtitle="Encaixe das tarefas no seu horário livre"
+        actions={
+          <div className="inline-flex items-center gap-1 rounded-lg border bg-white p-1">
+            <button onClick={() => setData(shiftDate(data, -1))} className="p-1.5 rounded hover:bg-slate-100">
+              <ChevronLeft size={18} />
+            </button>
+            <div className="px-3 flex items-center gap-1.5 text-sm font-medium min-w-[100px] justify-center">
+              <CalendarDays size={14} className="text-slate-400" />
+              {dateLabel(data)}
+            </div>
+            <button onClick={() => setData(shiftDate(data, 1))} className="p-1.5 rounded hover:bg-slate-100">
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button onClick={() => setData(shiftDate(data, 1))} className="p-1.5 rounded hover:bg-slate-100">
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Seletor de pessoa (tabs de avatares) */}
       {pessoas === undefined ? (

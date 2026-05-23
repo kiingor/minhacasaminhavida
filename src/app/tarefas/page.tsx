@@ -2,10 +2,13 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Trophy, ListPlus, CalendarDays, BookOpen, Flame, TrendingUp, CheckSquare, Target, Tv2 } from "lucide-react";
+import { Trophy, ListPlus, CalendarDays, BookOpen, Flame, TrendingUp, CheckSquare, Target, Tv2, ArrowRight } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
+import { Stat } from "@/components/ui/stat";
+import { Pill } from "@/components/ui/pill";
 import { PersonAvatar } from "@/components/pessoas/PersonAvatar";
 import { XPLineChart } from "@/components/tarefas/XPLineChart";
 import { TarefasPorPessoaChart } from "@/components/tarefas/TarefasPorPessoaChart";
@@ -13,10 +16,44 @@ import { CategoryPieChart } from "@/components/financeiro/CategoryPieChart";
 import { getTituloByNivel } from "@/lib/levelTitles";
 import { calcularNivel } from "@/lib/xpCalculator";
 
-const podioColors = ["#FBBF24", "#94A3B8", "#B45309"];
+const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
+const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } };
 
-const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
-const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
+interface ShortcutProps {
+  href: string;
+  icon: typeof Trophy;
+  title: string;
+  subtitle: string;
+  tone: "coral" | "dark" | "white";
+  external?: boolean;
+}
+
+function Shortcut({ href, icon: Icon, title, subtitle, tone, external }: ShortcutProps) {
+  const toneClass =
+    tone === "coral" ? "bg-coral-500 text-white shadow-pop"
+    : tone === "dark" ? "bg-ink-900 text-white"
+    : "bg-white text-ink-900 shadow-soft";
+  const Component = external ? "a" : Link;
+  const linkProps = external ? { href, target: "_blank", rel: "noopener noreferrer" as const } : { href };
+
+  return (
+    <Component
+      {...linkProps as { href: string }}
+      className={`group rounded-3xl p-5 flex flex-col justify-between min-h-[140px] transition-all hover:-translate-y-1 hover:shadow-card ${toneClass}`}
+    >
+      <div className={`w-11 h-11 rounded-full flex items-center justify-center ${tone === "white" ? "bg-cream-100 text-ink-700" : "bg-white/15"}`}>
+        <Icon size={20} />
+      </div>
+      <div className="mt-3">
+        <div className="font-display font-bold text-lg flex items-center gap-1.5">
+          {title}
+          <ArrowRight size={14} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+        </div>
+        <div className={`text-xs mt-0.5 ${tone === "white" ? "text-ink-400" : "text-white/65"}`}>{subtitle}</div>
+      </div>
+    </Component>
+  );
+}
 
 export default function TarefasPage() {
   const token = useSessionToken();
@@ -27,112 +64,114 @@ export default function TarefasPage() {
   const taxas = useQuery(api.tarefas.dashboardTarefas.taxaConclusao, token ? { sessionToken: token } : "skip");
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
-      <motion.div variants={item}>
-        <h1 className="font-display text-3xl font-extrabold">Tarefas</h1>
-        <p className="text-slate-500">Dashboard gamificado da família</p>
-      </motion.div>
+    <motion.div variants={container} initial="hidden" animate="show" className="py-6 md:py-10 space-y-6">
+      <motion.section variants={item}>
+        <div className="inline-flex items-center gap-2 mb-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400">Gamificação</span>
+          <span className="h-px w-8 bg-cream-300" />
+          <span className="text-[10px] text-ink-400 font-medium">Família</span>
+        </div>
+        <h1 className="font-display text-4xl md:text-5xl font-extrabold text-ink-900 leading-tight tracking-tight">
+          Tarefas
+        </h1>
+        <p className="text-ink-500 mt-1">Dashboard gamificado da família</p>
+      </motion.section>
 
-      {/* Atalhos */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-        <Link href="/tarefas/hoje" className="rounded-xl bg-gradient-to-br from-primary to-primary-dark text-white p-5 hover:shadow-lg transition-shadow group">
-          <ListPlus size={24} className="group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Tarefas de Hoje</div>
-          <div className="text-xs text-white/80">Checks gamificados</div>
-        </Link>
-        <Link href="/tarefas/catalogo" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
-          <BookOpen size={24} className="text-primary group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Catálogo</div>
-          <div className="text-xs text-slate-500">Gerenciar tarefas</div>
-        </Link>
-        <Link href="/tarefas/agenda" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
-          <CalendarDays size={24} className="text-primary group-hover:scale-110 transition-transform" />
-          <div className="font-display font-bold text-lg mt-2">Definir Tarefas</div>
-          <div className="text-xs text-slate-500">Encaixe inteligente</div>
-        </Link>
-        <a href="/tv" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-white border p-5 hover:shadow-md transition-shadow group">
-          <Tv2 size={24} className="text-slate-600 group-hover:scale-110 group-hover:text-primary transition-all" />
-          <div className="font-display font-bold text-lg mt-2">Modo TV</div>
-          <div className="text-xs text-slate-500">Tela cheia, nova guia</div>
-        </a>
-      </motion.div>
+      <motion.section variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Shortcut href="/tarefas/hoje"     icon={ListPlus}     title="Hoje"          subtitle="Checks gamificados" tone="coral" />
+        <Shortcut href="/tarefas/catalogo" icon={BookOpen}     title="Catálogo"      subtitle="Gerenciar tarefas"  tone="white" />
+        <Shortcut href="/tarefas/agenda"   icon={CalendarDays} title="Definir"       subtitle="Encaixe inteligente" tone="white" />
+        <Shortcut href="/tv"               icon={Tv2}          title="Modo TV"       subtitle="Tela cheia"          tone="dark" external />
+      </motion.section>
 
-      {/* Taxa de conclusão */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-3 sm:grid-cols-3">
+      <motion.section variants={item} className="grid gap-4 grid-cols-3">
         {taxas === undefined
-          ? [...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)
+          ? [...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-3xl" />)
           : [
-              { label: "Hoje", valor: taxas.taxaHoje, icon: CheckSquare, color: "#6366F1" },
-              { label: "Semana", valor: taxas.taxaSemana, icon: TrendingUp, color: "#10B981" },
-              { label: "Mês", valor: taxas.taxaMes, icon: Target, color: "#F59E0B" },
-            ].map(({ label, valor, icon: Icon, color }) => (
-              <div key={label} className="rounded-2xl bg-white border p-4 shadow-sm text-center">
-                <Icon size={20} className="mx-auto mb-1" style={{ color }} />
-                <div className="font-gamer font-bold text-2xl" style={{ color }}>
-                  {valor !== null ? `${valor}%` : "—"}
-                </div>
-                <div className="text-xs text-slate-500 mt-0.5">{label}</div>
-              </div>
+              { label: "Hoje",   valor: taxas.taxaHoje,   icon: CheckSquare, tone: "white" as const },
+              { label: "Semana", valor: taxas.taxaSemana, icon: TrendingUp,  tone: "dark"  as const },
+              { label: "Mês",    valor: taxas.taxaMes,    icon: Target,      tone: "coral" as const },
+            ].map(({ label, valor, icon, tone }) => (
+              <Stat
+                key={label}
+                label={label}
+                icon={icon}
+                tone={tone}
+                value={
+                  valor !== null
+                    ? <>{valor}<span className="text-2xl opacity-60">%</span></>
+                    : "—"
+                }
+              />
             ))}
-      </motion.div>
+      </motion.section>
 
-      {/* Ranking */}
       <motion.section variants={item}>
         <div className="flex items-center gap-2 mb-4">
-          <Trophy className="text-amber-500" size={22} />
-          <h2 className="font-display font-bold text-xl">Ranking da Família</h2>
+          <Trophy className="text-coral-500" size={22} />
+          <h2 className="font-display font-bold text-xl text-ink-900">Ranking da Família</h2>
         </div>
         {ranking === undefined ? (
-          <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+          <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 rounded-3xl" />)}</div>
         ) : ranking.length === 0 ? (
-          <div className="rounded-xl bg-slate-50 border border-dashed p-6 text-center text-slate-400 text-sm">
-            <Link href="/pessoas" className="text-primary font-medium hover:underline">Cadastre pessoas para ver o ranking →</Link>
-          </div>
+          <Card>
+            <div className="text-center py-6 text-ink-400 text-sm">
+              <Link href="/pessoas" className="text-coral-600 font-semibold hover:underline">
+                Cadastre pessoas para ver o ranking →
+              </Link>
+            </div>
+          </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {ranking.map((p, idx) => {
               const titulo = getTituloByNivel(p.nivelAtual);
               const { xpAtual, xpProximo } = calcularNivel(p.xpTotal);
               const pct = Math.min((xpAtual / xpProximo) * 100, 100);
+              const isLeader = idx === 0;
               return (
                 <motion.div
                   key={p._id}
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.07 }}
-                  className="rounded-xl bg-white border p-4 flex items-center gap-4"
-                  style={idx < 3 ? { borderLeftWidth: 4, borderLeftColor: podioColors[idx] } : undefined}
+                  transition={{ delay: idx * 0.05 }}
                 >
-                  <div className="font-display font-extrabold text-2xl w-8 text-center" style={{ color: idx < 3 ? podioColors[idx] : "#94A3B8" }}>
-                    {idx + 1}º
-                  </div>
-                  <PersonAvatar pessoa={p} size={48} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-display font-bold">{p.apelido ?? p.nome}</span>
-                      <span className="text-xs font-medium" style={{ color: titulo.corClasse }}>
-                        Nv {p.nivelAtual} · {titulo.titulo}
-                      </span>
-                      {p.streakDias >= 3 && (
-                        <span className="text-xs inline-flex items-center gap-0.5 text-orange-500 font-medium">
-                          <Flame size={12} /> {p.streakDias}d
+                  <Card tone={isLeader ? "dark" : "white"} className="flex items-center gap-4" padding="md">
+                    <div className={`font-display font-extrabold text-2xl w-10 text-center ${isLeader ? "text-coral-400" : "text-ink-300"}`}>
+                      {idx + 1}
+                    </div>
+                    <PersonAvatar pessoa={p} size={52} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`font-display font-bold ${isLeader ? "text-white" : "text-ink-900"}`}>
+                          {p.apelido ?? p.nome}
                         </span>
-                      )}
+                        <Pill tone={isLeader ? "coral" : "neutral"} size="xs">
+                          Nv {p.nivelAtual} · {titulo.titulo}
+                        </Pill>
+                        {p.streakDias >= 3 && (
+                          <span className={`text-xs inline-flex items-center gap-0.5 font-semibold ${isLeader ? "text-coral-300" : "text-coral-600"}`}>
+                            <Flame size={12} /> {p.streakDias}d
+                          </span>
+                        )}
+                      </div>
+                      <div className={`mt-2 h-2 rounded-full overflow-hidden ${isLeader ? "bg-white/15" : "bg-cream-200"}`}>
+                        <motion.div
+                          className={isLeader ? "h-full rounded-full bg-coral-400" : "h-full rounded-full bg-coral-500"}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.8, delay: idx * 0.07 }}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ background: `linear-gradient(90deg, ${titulo.corClasse}, #FBBF24)` }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.8, delay: idx * 0.07 }}
-                      />
+                    <div className="text-right shrink-0">
+                      <div className={`font-mono font-bold ${isLeader ? "text-coral-400" : "text-ink-900"}`}>
+                        {p.xpTotal.toLocaleString()} XP
+                      </div>
+                      <div className={`text-xs ${isLeader ? "text-white/60" : "text-ink-400"}`}>
+                        {p.tarefasCompletadasTotal} tarefas
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-gamer font-bold text-amber-500">{p.xpTotal.toLocaleString()} XP</div>
-                    <div className="text-xs text-slate-500">{p.tarefasCompletadasTotal} tarefas</div>
-                  </div>
+                  </Card>
                 </motion.div>
               );
             })}
@@ -140,36 +179,37 @@ export default function TarefasPage() {
         )}
       </motion.section>
 
-      {/* Gráficos */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <h2 className="font-display font-bold text-lg mb-3 flex items-center gap-2">
-            <TrendingUp size={18} className="text-primary" /> XP — Últimos 7 dias
+      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <h2 className="font-display font-bold text-lg mb-3 text-ink-900 flex items-center gap-2">
+            <TrendingUp size={18} className="text-coral-500" /> XP — Últimos 7 dias
           </h2>
           {xp7Dias ? (
             <XPLineChart dias={xp7Dias.dias} pessoasXp={xp7Dias.pessoasXp} />
           ) : (
             <Skeleton className="h-[260px]" />
           )}
-        </div>
-        <div className="rounded-2xl bg-white border p-5 shadow-sm">
-          <h2 className="font-display font-bold text-lg mb-3">Tarefas por pessoa</h2>
+        </Card>
+        <Card>
+          <h2 className="font-display font-bold text-lg mb-3 text-ink-900">Tarefas por pessoa</h2>
           {tarefasPessoa ? (
             <TarefasPorPessoaChart data={tarefasPessoa} />
           ) : (
             <Skeleton className="h-[220px]" />
           )}
-        </div>
-      </motion.div>
+        </Card>
+      </motion.section>
 
-      <motion.div variants={item} className="rounded-2xl bg-white border p-5 shadow-sm">
-        <h2 className="font-display font-bold text-lg mb-3">Tarefas por categoria (30 dias)</h2>
-        {tarefasCategoria ? (
-          <CategoryPieChart data={tarefasCategoria} />
-        ) : (
-          <Skeleton className="h-[280px]" />
-        )}
-      </motion.div>
+      <motion.section variants={item}>
+        <Card>
+          <h2 className="font-display font-bold text-lg mb-3 text-ink-900">Tarefas por categoria (30 dias)</h2>
+          {tarefasCategoria ? (
+            <CategoryPieChart data={tarefasCategoria} />
+          ) : (
+            <Skeleton className="h-[280px]" />
+          )}
+        </Card>
+      </motion.section>
     </motion.div>
   );
 }

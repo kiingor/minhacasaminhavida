@@ -34,14 +34,14 @@ export function XPLineChart({ dias, pessoasXp }: Props) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-        <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} />
+        <CartesianGrid strokeDasharray="2 4" stroke="#EDE7DE" vertical={false} />
+        <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "#8A8A8A" }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 11, fill: "#8A8A8A" }} axisLine={false} tickLine={false} />
         <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }}
+          contentStyle={{ borderRadius: 16, border: "1px solid #EDE7DE", boxShadow: "0 4px 16px rgba(15,15,15,0.06)" }}
           formatter={(v: number) => [`${v} XP`]}
         />
-        <Legend />
+        <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: "#5C5C5C" }} />
         {pessoasXp.map((p) => (
           <Line
             key={p.id}
@@ -49,8 +49,8 @@ export function XPLineChart({ dias, pessoasXp }: Props) {
             dataKey={p.nome}
             stroke={p.cor}
             strokeWidth={2.5}
-            dot={{ r: 4, fill: p.cor }}
-            activeDot={{ r: 6 }}
+            dot={{ r: 3, fill: p.cor, strokeWidth: 0 }}
+            activeDot={{ r: 6, strokeWidth: 0 }}
           />
         ))}
       </LineChart>

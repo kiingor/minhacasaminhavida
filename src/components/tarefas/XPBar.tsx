@@ -16,19 +16,14 @@ export function XPBar({ xpTotal, nivel }: Props) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
-        <span className="font-medium" style={{ color: titulo.corClasse }}>
-          Nv {nivel} · {titulo.titulo}
+        <span className="font-semibold text-ink-900">
+          Nv {nivel} · <span className="text-ink-500">{titulo.titulo}</span>
         </span>
-        <span className="text-slate-500 font-mono">
-          {xpAtual} / {xpProximo} XP
-        </span>
+        <span className="text-ink-400 font-mono">{xpAtual} / {xpProximo} XP</span>
       </div>
-      <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
+      <div className="h-2.5 rounded-full bg-cream-200 overflow-hidden">
         <motion.div
-          className="h-full rounded-full"
-          style={{
-            background: `linear-gradient(90deg, ${titulo.corClasse}, #FBBF24)`,
-          }}
+          className="h-full rounded-full bg-coral-500"
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         />

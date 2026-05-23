@@ -10,19 +10,20 @@ interface Props {
 
 export function TarefasPorPessoaChart({ data }: Props) {
   if (data.length === 0) {
-    return <div className="h-[220px] flex items-center justify-center text-slate-400 text-sm">Sem dados</div>;
+    return <div className="h-[220px] flex items-center justify-center text-ink-300 text-sm">Sem dados</div>;
   }
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} layout="vertical" barCategoryGap={12}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-        <XAxis type="number" tick={{ fontSize: 11 }} />
-        <YAxis type="category" dataKey="nome" tick={{ fontSize: 12 }} width={70} />
+      <BarChart data={data} layout="vertical" barCategoryGap={16}>
+        <CartesianGrid strokeDasharray="2 4" stroke="#EDE7DE" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 11, fill: "#8A8A8A" }} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="nome" tick={{ fontSize: 12, fill: "#262626", fontWeight: 600 }} width={80} axisLine={false} tickLine={false} />
         <Tooltip
-          contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }}
+          contentStyle={{ borderRadius: 16, border: "1px solid #EDE7DE", boxShadow: "0 4px 16px rgba(15,15,15,0.06)" }}
           formatter={(v: number) => [`${v} tarefas`]}
+          cursor={{ fill: "#FBF8F4" }}
         />
-        <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
+        <Bar dataKey="valor" radius={[0, 10, 10, 0]} maxBarSize={28}>
           {data.map((d, i) => <Cell key={i} fill={d.cor} />)}
         </Bar>
       </BarChart>

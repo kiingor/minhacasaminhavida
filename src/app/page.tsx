@@ -3,30 +3,24 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
-  Wallet, ListChecks, Target, Users, TrendingUp, Flame, Award,
+  Wallet, ListChecks, Target, Users, Flame, Award,
   AlertCircle, ArrowDownCircle, ArrowUpCircle, Tv2, Trophy,
-  Zap, Calendar,
+  Zap, Calendar, ArrowRight,
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
-import { useSession } from "@/contexts/SessionContext";
-import { useSessionToken } from "@/contexts/SessionContext";
+import { useSession, useSessionToken } from "@/contexts/SessionContext";
 import { PersonAvatar } from "@/components/pessoas/PersonAvatar";
 import { LucideIcon as LucideIconDynamic } from "@/components/tarefas/LucideIcon";
 import { getTituloByNivel } from "@/lib/levelTitles";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
+import { Stat } from "@/components/ui/stat";
+import { Pill } from "@/components/ui/pill";
 import { formatBRL, formatDate, todayISO } from "@/lib/formatters";
 import { currentMonth } from "@/lib/monthUtils";
 
-const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
-const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
-
-function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-2xl bg-white/50 backdrop-blur-sm border border-white/60 shadow-[0_4px_16px_rgba(0,0,0,0.04)] p-5 ${className}`}>
-      {children}
-    </div>
-  );
-}
+const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
+const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } };
 
 function timeAgo(isoDate: string): string {
   const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86400000);
@@ -44,6 +38,7 @@ export default function Home() {
   const pessoas = useQuery(api.pessoas.ranking, token ? { sessionToken: token } : "skip");
   const pessoasList = useQuery(api.pessoas.list, token ? { sessionToken: token } : "skip");
   const resumo = useQuery(api.financeiro.dashboardFinanceiro.resumoMes, token ? { sessionToken: token, mes } : "skip");
+  const saldoEfetivado = useQuery(api.financeiro.dashboardFinanceiro.saldoEfetivado, token ? { sessionToken: token } : "skip");
   const proximas = useQuery(api.financeiro.dashboardFinanceiro.proximasContas, token ? { sessionToken: token } : "skip");
   const taxas = useQuery(api.tarefas.dashboardTarefas.taxaConclusao, token ? { sessionToken: token } : "skip");
   const conquistas = useQuery(api.tarefas.dashboardTarefas.conquistasRecentes, token ? { sessionToken: token } : "skip");
@@ -55,97 +50,102 @@ export default function Home() {
   const xpFamilia = ativas.reduce((s, p) => s + p.xpTotal, 0);
   const maiorStreak = ativas.reduce((max, p) => Math.max(max, p.streakDias), 0);
 
-  // Tarefas por pessoa hoje
   const tarefasPorPessoa = ativas.map((p) => {
     const lancs = lancamentosHoje?.filter((l) => l.pessoaId === p._id) ?? [];
     return { pessoa: p, total: lancs.length, feitas: lancs.filter((l) => l.completada).length };
   });
 
   const firstName = session?.name?.split(" ")[0] ?? "família";
+  const sinalSaldo = saldoEfetivado && saldoEfetivado.valor < 0 ? "-" : "";
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      {/* Header */}
-      <motion.header variants={item}>
-        <h1 className="font-display text-3xl font-extrabold">Olá, {firstName}!</h1>
-        <p className="text-slate-500 flex items-center gap-2 mt-0.5">
-          <Calendar size={14} />
-          {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
-          {proximas && proximas.length > 0 && (
-            <span className="text-warning text-xs font-medium ml-2">· {proximas.length} conta{proximas.length > 1 ? "s" : ""} pendente{proximas.length > 1 ? "s" : ""}</span>
-          )}
-        </p>
-      </motion.header>
+    <motion.div variants={container} initial="hidden" animate="show" className="py-6 md:py-10 space-y-6">
 
-      {/* Quick Stats */}
-      <motion.div variants={item} className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        {resumo ? (
-          <GlassCard>
-            <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Saldo do mês</div>
-            <div className={`font-mono font-bold text-lg mt-1 ${resumo.saldo >= 0 ? "text-success" : "text-danger"}`}>
-              {formatBRL(resumo.saldo)}
-            </div>
-          </GlassCard>
-        ) : <Skeleton className="h-20 rounded-2xl" />}
-
-        <GlassCard>
-          <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Tarefas hoje</div>
-          <div className="flex items-baseline gap-1 mt-1">
-            <span className={`font-bold text-lg ${feitasHoje === totalHoje && totalHoje > 0 ? "text-success" : "text-primary"}`}>
-              {taxas?.taxaHoje ?? 0}%
-            </span>
-            <span className="text-xs text-slate-400">{feitasHoje}/{totalHoje}</span>
+      <motion.section variants={item} className="grid gap-6 md:grid-cols-[auto_1fr] items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-2xl border border-cream-200 bg-white flex flex-col items-center justify-center shadow-soft">
+            <span className="font-display font-extrabold text-lg leading-none text-ink-900">{new Date().getDate()}</span>
           </div>
-        </GlassCard>
-
-        <GlassCard>
-          <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">XP da família</div>
-          <div className="font-bold text-lg text-amber-500 mt-1 flex items-center gap-1">
-            <Zap size={16} />
-            {xpFamilia.toLocaleString("pt-BR")}
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs text-ink-400 capitalize">{new Date().toLocaleDateString("pt-BR", { weekday: "short" })}</span>
+            <span className="font-semibold text-sm text-ink-900 capitalize">{new Date().toLocaleDateString("pt-BR", { month: "long" })}</span>
           </div>
-        </GlassCard>
+        </div>
+        <div className="md:text-right">
+          <h1 className="font-display text-3xl md:text-4xl font-extrabold text-ink-900 leading-tight">
+            Olá, {firstName}! <span aria-hidden>👋</span>
+          </h1>
+          <p className="text-ink-400 mt-1">
+            {proximas && proximas.length > 0
+              ? `${proximas.length} conta${proximas.length > 1 ? "s" : ""} aguardando você`
+              : "Tudo certo por aqui hoje"}
+          </p>
+        </div>
+      </motion.section>
 
-        <GlassCard>
-          <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Maior streak</div>
-          <div className="font-bold text-lg text-orange-500 mt-1 flex items-center gap-1">
-            <Flame size={16} />
-            {maiorStreak} dia{maiorStreak !== 1 ? "s" : ""}
-          </div>
-        </GlassCard>
-      </motion.div>
+      <motion.section variants={item} className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        {saldoEfetivado ? (
+          <Stat
+            label="Saldo nas contas"
+            icon={Wallet}
+            tone="dark"
+            hint={`${saldoEfetivado.contasAtivas} ${saldoEfetivado.contasAtivas === 1 ? "conta" : "contas"}`}
+            value={<span className="font-mono">{sinalSaldo}{formatBRL(Math.abs(saldoEfetivado.valor))}</span>}
+          />
+        ) : <Skeleton className="h-32 rounded-3xl" />}
 
-      {/* Tarefas do dia + Finanças */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        {/* Tarefas do dia */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg flex items-center gap-2">
-              <ListChecks size={20} className="text-primary" /> Tarefas do Dia
+        <Stat
+          label="Tarefas hoje"
+          icon={ListChecks}
+          tone="white"
+          value={<>{taxas?.taxaHoje ?? 0}<span className="text-2xl text-ink-400">%</span></>}
+          hint={`${feitasHoje} de ${totalHoje}`}
+        />
+
+        <Stat
+          label="XP da família"
+          icon={Zap}
+          tone="coral"
+          value={xpFamilia.toLocaleString("pt-BR")}
+        />
+
+        <Stat
+          label="Maior streak"
+          icon={Flame}
+          tone="white"
+          value={<>{maiorStreak}<span className="text-2xl text-ink-400 ml-1">d</span></>}
+        />
+      </motion.section>
+
+      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
+              <ListChecks size={20} className="text-coral-500" /> Tarefas do dia
             </h2>
-            <Link href="/tarefas/hoje" className="text-xs text-primary hover:underline">Abrir →</Link>
+            <Link href="/tarefas/hoje" className="text-xs font-semibold text-coral-600 hover:text-coral-700 inline-flex items-center gap-1">
+              Abrir <ArrowRight size={12} />
+            </Link>
           </div>
           {lancamentosHoje === undefined ? (
-            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : totalHoje === 0 ? (
-            <div className="text-center py-6 text-slate-400 text-sm">Nenhuma tarefa hoje</div>
+            <div className="text-center py-8 text-ink-300 text-sm">Nenhuma tarefa hoje</div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {tarefasPorPessoa.filter((t) => t.total > 0).map(({ pessoa, total, feitas }) => {
                 const pct = Math.round((feitas / total) * 100);
                 return (
                   <div key={pessoa._id} className="flex items-center gap-3">
-                    <PersonAvatar pessoa={pessoa} size={32} />
+                    <PersonAvatar pessoa={pessoa} size={36} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium truncate">{pessoa.apelido ?? pessoa.nome.split(" ")[0]}</span>
-                        <span className={`text-xs font-semibold ${pct === 100 ? "text-success" : "text-slate-500"}`}>
-                          {feitas}/{total}
-                        </span>
+                        <span className="font-semibold text-ink-900 truncate">{pessoa.apelido ?? pessoa.nome.split(" ")[0]}</span>
+                        <span className="text-xs font-mono font-bold text-ink-900">{feitas}/{total}</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
+                      <div className="h-1.5 rounded-full bg-cream-200 overflow-hidden mt-1.5">
                         <motion.div
-                          className={`h-full rounded-full ${pct === 100 ? "bg-success" : "bg-primary"}`}
+                          className={pct === 100 ? "h-full rounded-full bg-coral-500" : "h-full rounded-full bg-ink-900"}
                           initial={{ width: 0 }}
                           animate={{ width: `${pct}%` }}
                           transition={{ duration: 0.6 }}
@@ -157,174 +157,168 @@ export default function Home() {
               })}
             </div>
           )}
-        </GlassCard>
+        </Card>
 
-        {/* Finanças mini */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg flex items-center gap-2">
-              <Wallet size={20} className="text-rose-500" /> Finanças
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
+              <Wallet size={20} className="text-coral-500" /> Finanças
             </h2>
-            <Link href="/financeiro" className="text-xs text-primary hover:underline">Ver mais →</Link>
+            <Link href="/financeiro" className="text-xs font-semibold text-coral-600 hover:text-coral-700 inline-flex items-center gap-1">
+              Ver mais <ArrowRight size={12} />
+            </Link>
           </div>
           {resumo === undefined ? (
-            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-6 rounded" />)}</div>
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-7" />)}</div>
           ) : (
             <div className="space-y-2 text-sm mb-4">
-              <div className="flex justify-between">
-                <span className="text-slate-500 flex items-center gap-1"><ArrowUpCircle size={13} className="text-success" /> A receber</span>
-                <span className="font-mono font-semibold text-success">{formatBRL(resumo.aReceber)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-ink-500 flex items-center gap-2 font-medium"><ArrowUpCircle size={14} /> A receber</span>
+                <span className="font-mono font-bold text-ink-900">{formatBRL(resumo.aReceber)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 flex items-center gap-1"><ArrowDownCircle size={13} className="text-danger" /> A pagar</span>
-                <span className="font-mono font-semibold text-danger">{formatBRL(resumo.aPagar)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-ink-500 flex items-center gap-2 font-medium"><ArrowDownCircle size={14} /> A pagar</span>
+                <span className="font-mono font-bold text-ink-900">-{formatBRL(resumo.aPagar)}</span>
               </div>
             </div>
           )}
 
-          {/* Próximas contas */}
           {proximas === undefined ? (
-            <Skeleton className="h-20 rounded" />
+            <Skeleton className="h-20" />
           ) : proximas.length === 0 ? (
-            <div className="text-center py-3 text-slate-400 text-xs">Nenhuma conta pendente</div>
+            <div className="text-center py-3 text-ink-300 text-xs">Nenhuma conta pendente</div>
           ) : (
-            <div>
-              <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Próximas contas</div>
-              <ul className="space-y-1.5">
+            <div className="mt-4 pt-4 border-t border-cream-200">
+              <div className="text-[10px] font-semibold text-ink-400 uppercase tracking-[0.12em] mb-2">Próximas contas</div>
+              <ul className="space-y-2">
                 {proximas.slice(0, 5).map((d) => (
                   <li key={d._id} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <AlertCircle size={12} className="text-warning shrink-0" />
-                      <span className="truncate">{d.descricao}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertCircle size={12} className="text-ink-400 shrink-0" />
+                      <span className="truncate text-ink-700">{d.descricao}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-slate-400">{formatDate(d.dataVencimento)}</span>
-                      <span className="font-mono font-semibold">{formatBRL(d.valor)}</span>
+                      <span className="text-ink-400">{formatDate(d.dataVencimento)}</span>
+                      <span className="font-mono font-bold text-ink-900">{formatBRL(d.valor)}</span>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-        </GlassCard>
-      </motion.div>
+        </Card>
+      </motion.section>
 
-      {/* Conquistas + Ranking */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2">
-        {/* Conquistas recentes */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg flex items-center gap-2">
-              <Award size={20} className="text-amber-500" /> Conquistas
+      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
+              <Award size={20} className="text-coral-500" /> Conquistas
             </h2>
           </div>
           {conquistas === undefined ? (
-            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 rounded" />)}</div>
+            <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : conquistas.length === 0 ? (
-            <div className="text-center py-6 text-slate-400 text-sm">
+            <div className="text-center py-8 text-ink-300 text-sm">
               <Award size={32} className="mx-auto mb-2 opacity-30" />
-              Complete tarefas para desbloquear conquistas!
+              Complete tarefas para desbloquear conquistas
             </div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {conquistas.slice(0, 5).map((c) => (
                 <li key={c._id} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-white shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-coral-500 text-white flex items-center justify-center shrink-0">
                     <LucideIconDynamic name={c.icone} size={16} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{c.nome}</div>
-                    <div className="text-[10px] text-slate-400">{c.pessoaNome} · {timeAgo(c.desbloqueadaEm)}</div>
+                    <div className="font-semibold text-sm text-ink-900 truncate">{c.nome}</div>
+                    <div className="text-[11px] text-ink-400">{c.pessoaNome} · {timeAgo(c.desbloqueadaEm)}</div>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </GlassCard>
+        </Card>
 
-        {/* Ranking */}
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-bold text-lg flex items-center gap-2">
-              <Trophy size={20} className="text-yellow-500" /> Ranking
+        <Card>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
+              <Trophy size={20} className="text-coral-500" /> Ranking
             </h2>
-            <Link href="/tarefas" className="text-xs text-primary hover:underline">Ver completo →</Link>
+            <Link href="/tarefas" className="text-xs font-semibold text-coral-600 hover:text-coral-700 inline-flex items-center gap-1">
+              Completo <ArrowRight size={12} />
+            </Link>
           </div>
           {pessoas === undefined ? (
-            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 rounded" />)}</div>
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
           ) : pessoas.length === 0 ? (
-            <div className="text-center py-6 text-slate-400 text-sm">Cadastre pessoas para ver o ranking</div>
+            <div className="text-center py-8 text-ink-300 text-sm">Cadastre pessoas para ver o ranking</div>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {pessoas.slice(0, 5).map((p, i) => {
                 const titulo = getTituloByNivel(p.nivelAtual);
-                const medals = ["#FBBF24", "#94A3B8", "#B45309"];
                 return (
                   <li key={p._id} className="flex items-center gap-3">
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                      style={{
-                        background: i < 3 ? `${medals[i]}20` : "#f1f5f920",
-                        color: i < 3 ? medals[i] : "#94A3B8",
-                      }}
-                    >
-                      {i + 1}º
-                    </div>
-                    <PersonAvatar pessoa={p} size={32} />
+                    <span className={`font-display font-extrabold text-lg w-6 text-center ${i === 0 ? "text-coral-500" : "text-ink-300"}`}>
+                      {i + 1}
+                    </span>
+                    <PersonAvatar pessoa={p} size={36} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm truncate">{p.apelido ?? p.nome.split(" ")[0]}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: `${titulo.corClasse}15`, color: titulo.corClasse }}>
-                          Nv {p.nivelAtual}
-                        </span>
+                        <span className="font-semibold text-sm text-ink-900 truncate">{p.apelido ?? p.nome.split(" ")[0]}</span>
+                        <Pill tone="neutral" size="xs">Nv {p.nivelAtual}</Pill>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                      <div className="flex items-center gap-2 text-[11px] text-ink-400 mt-0.5">
                         <span>{titulo.titulo}</span>
                         {p.streakDias >= 2 && (
-                          <span className="text-orange-500 inline-flex items-center gap-0.5">
-                            <Flame size={9} />{p.streakDias}d
+                          <span className="inline-flex items-center gap-0.5 text-ink-700 font-semibold">
+                            <Flame size={10} />{p.streakDias}d
                           </span>
                         )}
-                        <span className="font-mono">{p.xpTotal.toLocaleString("pt-BR")} XP</span>
                       </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-mono font-bold text-sm text-ink-900">{p.xpTotal.toLocaleString("pt-BR")}</div>
+                      <div className="text-[10px] text-ink-400 uppercase tracking-wide">XP</div>
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
-        </GlassCard>
-      </motion.div>
+        </Card>
+      </motion.section>
 
-      {/* Atalhos */}
       <motion.section variants={item}>
-        <h2 className="font-display font-bold text-lg mb-3">Atalhos</h2>
+        <h2 className="font-display font-bold text-lg text-ink-900 mb-3">Atalhos</h2>
         <div className="grid gap-3 grid-cols-3 md:grid-cols-6">
           {[
-            { href: "/tarefas/hoje", label: "Tarefas", icon: ListChecks, color: "#6366F1" },
-            { href: "/financeiro/despesas", label: "Despesas", icon: ArrowDownCircle, color: "#F43F5E" },
-            { href: "/financeiro/receitas", label: "Receitas", icon: ArrowUpCircle, color: "#10B981" },
-            { href: "/financeiro/metas", label: "Metas", icon: Target, color: "#F59E0B" },
-            { href: "/tv", label: "Modo TV", icon: Tv2, color: "#8B5CF6", target: "_blank" },
-            { href: "/pessoas", label: "Pessoas", icon: Users, color: "#06B6D4" },
-          ].map(({ href, label, icon: Icon, color, target }) => (
+            { href: "/tarefas/hoje",          label: "Tarefas",  icon: ListChecks },
+            { href: "/financeiro/despesas",   label: "Despesas", icon: ArrowDownCircle },
+            { href: "/financeiro/receitas",   label: "Receitas", icon: ArrowUpCircle },
+            { href: "/financeiro/metas",      label: "Metas",    icon: Target },
+            { href: "/tv",                    label: "Modo TV",  icon: Tv2, target: "_blank" as const },
+            { href: "/pessoas",               label: "Pessoas",  icon: Users },
+          ].map(({ href, label, icon: Icon, target }) => (
             <Link
               key={href}
               href={href}
               target={target}
-              className="rounded-xl bg-white/50 backdrop-blur-sm border border-white/60 p-3 flex flex-col items-center gap-2 hover:shadow-md hover:bg-white/70 transition-all group"
+              className="group rounded-3xl bg-white shadow-soft p-4 flex flex-col items-center gap-2 hover:shadow-card hover:-translate-y-0.5 transition-all"
             >
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-transform group-hover:scale-110 shadow-sm"
-                style={{ background: color }}
-              >
-                <Icon size={20} />
+              <div className="w-11 h-11 rounded-full bg-cream-100 group-hover:bg-coral-500 text-ink-700 group-hover:text-white flex items-center justify-center transition-colors">
+                <Icon size={18} />
               </div>
-              <span className="text-xs font-medium text-slate-600">{label}</span>
+              <span className="text-xs font-semibold text-ink-700">{label}</span>
             </Link>
           ))}
         </div>
       </motion.section>
+
+      <motion.div variants={item} className="flex items-center gap-2 justify-center text-[11px] text-ink-300 pt-2">
+        <Calendar size={12} />
+        {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      </motion.div>
     </motion.div>
   );
 }

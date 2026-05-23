@@ -3,34 +3,75 @@
 @tailwind utilities;
 
 :root {
-  --primary: #6366F1;
-  --primary-light: #818CF8;
-  --primary-dark: #4F46E5;
-  --success: #10B981;
-  --danger: #F43F5E;
-  --warning: #F59E0B;
-  --info: #06B6D4;
-  --xp-gold: #FBBF24;
-  --xp-gold-dark: #F59E0B;
-  --level-up-glow: #FFD700;
-  --streak-fire: #FB7185;
-  --task-limpeza: #06B6D4;
-  --task-cozinha: #F97316;
-  --task-roupas: #8B5CF6;
-  --task-pets: #EC4899;
-  --task-jardim: #10B981;
-  --task-compras: #3B82F6;
-  --bg-main: #F8FAFC;
-  --bg-card: #FFFFFF;
-  --bg-sidebar: #1E1B4B;
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
+  /* Paleta primária — coral */
+  --coral-50:  #FFF4F0;
+  --coral-100: #FFE5DB;
+  --coral-300: #FFA88B;
+  --coral-400: #FF8965;
+  --coral-500: #FF6B47;
+  --coral-600: #F0512C;
+  --coral-700: #C73E1F;
+
+  /* Background / neutros warm */
+  --cream-50:  #FBF8F4;
+  --cream-100: #F5F1EC;
+  --cream-200: #EDE7DE;
+  --cream-300: #DDD3C5;
+
+  /* Tinta — texto e bordas */
+  --ink-100: #EEEEEE;
+  --ink-200: #D9D9D9;
+  --ink-300: #B8B8B8;
+  --ink-400: #8A8A8A;
+  --ink-500: #5C5C5C;
+  --ink-700: #262626;
+  --ink-800: #1A1A1A;
+  --ink-900: #0F0F0F;
+
+  /* Aliases pra evitar quebra de código antigo */
+  --primary:       #FF6B47;
+  --primary-light: #FF8965;
+  --primary-dark:  #F0512C;
+  --success: #0F0F0F;
+  --danger:  #0F0F0F;
+  --warning: #0F0F0F;
+  --info:    #0F0F0F;
+  --xp-gold:       #FF6B47;
+  --xp-gold-dark:  #F0512C;
+  --level-up-glow: #FF8965;
+  --streak-fire:   #FF6B47;
+  --task-limpeza: #FF6B47;
+  --task-cozinha: #F0512C;
+  --task-roupas:  #5C5C5C;
+  --task-pets:    #FF8965;
+  --task-jardim:  #3D3D3D;
+  --task-compras: #8A8A8A;
+
+  --bg-main:    #F5F1EC;
+  --bg-card:    #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --text-primary:   #0F0F0F;
+  --text-secondary: #8A8A8A;
 }
 
 html, body { height: 100%; }
 body {
-  background: var(--bg-main);
-  color: var(--text-primary);
+  background: var(--cream-100);
+  color: var(--ink-900);
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Scrollbar discreta combinando com o tema */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--cream-300);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ink-300); background-clip: padding-box; }
+
+/* Seleção de texto coral */
+::selection { background: var(--coral-200, #FFCBB7); color: var(--ink-900); }

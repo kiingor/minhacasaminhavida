@@ -24,19 +24,20 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} className="max-w-sm">
-      <div className="flex flex-col items-center text-center gap-3">
-        <div className="w-12 h-12 rounded-full bg-danger/10 flex items-center justify-center">
-          <AlertTriangle size={24} className="text-danger" />
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-coral-100 flex items-center justify-center">
+          <AlertTriangle size={26} className="text-coral-600" />
         </div>
-        <h3 className="font-display font-bold text-lg">{title}</h3>
-        <p className="text-sm text-slate-500">{description}</p>
+        <h3 className="font-display font-bold text-lg text-ink-900">{title}</h3>
+        <p className="text-sm text-ink-500">{description}</p>
         <div className="flex gap-3 w-full pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
           <Button
             type="button"
-            className="flex-1 bg-danger hover:bg-danger/90 text-white"
+            variant="dark"
+            className="flex-1"
             onClick={() => { onConfirm(); onClose(); }}
             disabled={loading}
           >

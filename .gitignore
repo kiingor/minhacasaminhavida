@@ -30,3 +30,7 @@ yarn-error.log*
 tsconfig.tsbuildinfo
 
 .vercel
+
+# Claude Code local artifacts (não commitar)
+.claude/worktrees/
+.claude/launch.json

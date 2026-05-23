@@ -2,8 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Check, Trash2, Pencil, ChevronLeft, Search, Filter, ArrowUpCircle, Loader2 } from "lucide-react";
-import Link from "next/link";
+import { Plus, Check, Trash2, Pencil, Search, Filter, ArrowUpCircle, Loader2 } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -12,6 +11,7 @@ import { ReceitaForm } from "@/components/financeiro/ReceitaForm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ParcelasView } from "@/components/financeiro/ParcelasView";
 import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
 import { formatBRL, formatDate } from "@/lib/formatters";
@@ -88,23 +88,24 @@ export default function ReceitasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/financeiro" className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-700 mb-1">
-            <ChevronLeft size={14} /> Finanças
-          </Link>
-          <h1 className="font-display text-3xl font-extrabold">Receitas</h1>
-          <div className="flex flex-wrap gap-3 text-sm mt-0.5">
-            <span className="text-slate-500">Total: <span className="font-mono font-semibold text-success">{formatBRL(total)}</span></span>
-            <span className="text-slate-400">|</span>
-            <span className="text-success">Recebido: <span className="font-mono font-semibold">{formatBRL(totalRecebido)}</span></span>
-            <span className="text-slate-400">|</span>
-            <span className="text-warning">Pendente: <span className="font-mono font-semibold">{formatBRL(totalPendente)}</span></span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <MonthSelector mes={mes} onChange={setMes} />
-          <Button onClick={() => setShowForm(true)}><Plus size={16} /> Nova</Button>
+      <div>
+        <PageHeader
+          backHref="/financeiro"
+          backLabel="Voltar para Finanças"
+          title="Receitas"
+          actions={
+            <>
+              <MonthSelector mes={mes} onChange={setMes} />
+              <Button onClick={() => setShowForm(true)}><Plus size={16} /> Nova</Button>
+            </>
+          }
+        />
+        <div className="flex flex-wrap gap-3 text-sm mt-1 md:ml-[52px]">
+          <span className="text-slate-500">Total: <span className="font-mono font-semibold text-success">{formatBRL(total)}</span></span>
+          <span className="text-slate-400">|</span>
+          <span className="text-success">Recebido: <span className="font-mono font-semibold">{formatBRL(totalRecebido)}</span></span>
+          <span className="text-slate-400">|</span>
+          <span className="text-warning">Pendente: <span className="font-mono font-semibold">{formatBRL(totalPendente)}</span></span>
         </div>
       </div>
 

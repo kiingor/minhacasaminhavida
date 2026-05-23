@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Pencil, CreditCard, ChevronLeft } from "lucide-react";
-import Link from "next/link";
+import { Plus, Trash2, Pencil, CreditCard } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -12,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const BANDEIRAS = ["Visa", "Mastercard", "Elo", "American Express", "Hipercard", "Outro"];
 const CORES = ["#6366F1","#EF4444","#F97316","#10B981","#06B6D4","#8B5CF6","#EC4899","#F59E0B","#64748B","#1E1B4B"];
@@ -64,18 +64,17 @@ export default function CartoesPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/financeiro" className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-700 mb-1">
-            <ChevronLeft size={14} /> Finanças
-          </Link>
-          <h1 className="font-display text-3xl font-extrabold">Cartões</h1>
-          <p className="text-slate-500">Gerencie seus cartões de crédito</p>
-        </div>
-        <Button onClick={openNew}>
-          <Plus size={16} /> Novo Cartão
-        </Button>
-      </div>
+      <PageHeader
+        backHref="/financeiro"
+        backLabel="Voltar para Finanças"
+        title="Cartões"
+        subtitle="Gerencie seus cartões de crédito"
+        actions={
+          <Button onClick={openNew}>
+            <Plus size={16} /> Novo Cartão
+          </Button>
+        }
+      />
 
       {cartoes === undefined ? (
         <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>

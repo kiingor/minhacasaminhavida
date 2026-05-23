@@ -47,8 +47,10 @@ export const register = mutation({
     password: v.string(),
     familyName: v.optional(v.string()),
     familyCode: v.optional(v.string()), // entrar em família existente
+    // Marco 3.E: registro de consultor (sem familia propria).
+    asConsultor: v.optional(v.boolean()),
   },
-  handler: async (ctx, { name, email, password, familyName, familyCode }) => {
+  handler: async (ctx, { name, email, password, familyName, familyCode, asConsultor }) => {
     const existing = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email.toLowerCase()))
@@ -56,9 +58,14 @@ export const register = mutation({
     if (existing) throw new Error("Email já cadastrado");
 
     let familyId: string;
-    let role: "admin" | "member" = "member";
+    let role: "admin" | "member" | "consultor" = "member";
 
-    if (familyCode) {
+    if (asConsultor) {
+      // Consultor: nao tem familia propria. Cria um workspace virtual unico
+      // pra simplificar o modelo (todas as queries continuam usando familyId).
+      familyId = `CONS-${generateToken().slice(0, 12).toUpperCase()}`;
+      role = "consultor";
+    } else if (familyCode) {
       // Entrar em família existente
       const familia = await ctx.db
         .query("familias")
@@ -120,7 +127,12 @@ export const login = mutation({
       expiresAt: expiresAt30Dias(),
     });
 
-    return { token, familyId: user.familyId, name: user.name, role: user.role };
+    return {
+      token,
+      familyId: user.familyId,
+      name: user.name,
+      role: user.role,
+    };
   },
 });
 

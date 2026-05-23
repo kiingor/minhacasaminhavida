@@ -84,25 +84,25 @@ export default function AgentePage() {
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100vh-64px)] flex-col md:mx-0 md:my-0 md:h-[calc(100vh-120px)]">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+      <div className="flex items-center justify-between border-b border-cream-200 bg-white px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setSidebarMobile(true)}
-            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 md:hidden"
+            className="rounded-full w-9 h-9 flex items-center justify-center text-ink-500 hover:bg-cream-100 md:hidden"
             aria-label="Abrir conversas"
           >
             <Menu size={18} />
           </button>
           <Link
             href="/financeiro"
-            className="hidden items-center gap-1 text-sm text-slate-400 hover:text-slate-700 md:inline-flex"
+            aria-label="Voltar para Finanças"
+            className="hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full bg-white border border-cream-200 text-ink-700 hover:bg-cream-50 hover:border-coral-300 hover:text-coral-600 transition-colors shadow-soft"
           >
-            <ChevronLeft size={14} /> Finanças
+            <ChevronLeft size={16} />
           </Link>
-          <span className="hidden text-slate-300 md:inline">/</span>
-          <div className="flex items-center gap-2 min-w-0">
-            <Sparkles size={16} className="text-violet-500 shrink-0" />
-            <h1 className="font-display text-lg font-bold truncate">Agente Financeiro</h1>
+          <div className="flex items-center gap-2 min-w-0 ml-1">
+            <Sparkles size={16} className="text-coral-500 shrink-0" />
+            <h1 className="font-display text-lg font-bold text-ink-900 truncate">Agente Financeiro</h1>
           </div>
         </div>
       </div>

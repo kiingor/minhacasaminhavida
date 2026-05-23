@@ -1,6 +1,7 @@
 "use client";
 import { CreditCard } from "lucide-react";
 import { formatBRL } from "@/lib/formatters";
+import { Card } from "@/components/ui/card";
 
 interface Props {
   data?: { cartao: number; aVista: number };
@@ -11,40 +12,40 @@ export function CartaoVsAVistaChart({ data }: Props) {
   const total = data.cartao + data.aVista;
   if (total === 0) {
     return (
-      <section aria-labelledby="cartao-vista" className="rounded-2xl bg-white border p-5 shadow-sm">
-        <div className="flex items-center gap-2 text-xs uppercase text-slate-500 tracking-wide font-medium">
-          <CreditCard size={14} className="text-purple-600" aria-hidden />
+      <Card as="section" aria-labelledby="cartao-vista">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold">
+          <CreditCard size={14} aria-hidden />
           <h2 id="cartao-vista">Cartão vs À vista</h2>
         </div>
-        <div className="mt-3 text-sm text-slate-400">Nenhuma despesa este mês</div>
-      </section>
+        <div className="mt-3 text-sm text-ink-400">Nenhuma despesa este mês</div>
+      </Card>
     );
   }
   const pctCartao = Math.round((data.cartao / total) * 100);
   const pctVista = 100 - pctCartao;
 
   return (
-    <section aria-labelledby="cartao-vista" className="rounded-2xl bg-white border p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-xs uppercase text-slate-500 tracking-wide font-medium">
-        <CreditCard size={14} className="text-purple-600" aria-hidden />
+    <Card as="section" aria-labelledby="cartao-vista">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold">
+        <CreditCard size={14} aria-hidden />
         <h2 id="cartao-vista">Cartão vs À vista</h2>
       </div>
 
-      <div className="mt-4 flex h-3 rounded-full overflow-hidden bg-slate-100" role="img" aria-label={`${pctCartao}% cartão, ${pctVista}% à vista`}>
-        {data.cartao > 0 && <div className="bg-purple-500" style={{ width: `${pctCartao}%` }} />}
-        {data.aVista > 0 && <div className="bg-emerald-500" style={{ width: `${pctVista}%` }} />}
+      <div className="mt-4 flex h-3 rounded-full overflow-hidden bg-cream-200" role="img" aria-label={`${pctCartao}% cartão, ${pctVista}% à vista`}>
+        {data.cartao > 0 && <div className="bg-ink-900" style={{ width: `${pctCartao}%` }} />}
+        {data.aVista > 0 && <div className="bg-coral-500" style={{ width: `${pctVista}%` }} />}
       </div>
 
       <div className="mt-4 space-y-1.5 text-sm">
         <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Cartão</span>
-          <span className="font-mono text-slate-700">{formatBRL(data.cartao)} · {pctCartao}%</span>
+          <span className="flex items-center gap-2 text-ink-700"><span className="w-2.5 h-2.5 rounded-full bg-ink-900" /> Cartão</span>
+          <span className="font-mono text-ink-500">{formatBRL(data.cartao)} · {pctCartao}%</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> À vista</span>
-          <span className="font-mono text-slate-700">{formatBRL(data.aVista)} · {pctVista}%</span>
+          <span className="flex items-center gap-2 text-ink-700"><span className="w-2.5 h-2.5 rounded-full bg-coral-500" /> À vista</span>
+          <span className="font-mono text-ink-500">{formatBRL(data.aVista)} · {pctVista}%</span>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }

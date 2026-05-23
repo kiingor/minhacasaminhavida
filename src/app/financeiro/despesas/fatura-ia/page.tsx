@@ -14,6 +14,7 @@ import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { formatBRL } from "@/lib/formatters";
 import { todayISO } from "@/lib/formatters";
 
@@ -226,15 +227,12 @@ export default function FaturaIAPage() {
   if (step === "upload") {
     return (
       <div className="max-w-xl mx-auto space-y-6">
-        <div>
-          <Link href="/financeiro/despesas" className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-700 mb-1">
-            <ChevronLeft size={14} /> Despesas
-          </Link>
-          <h1 className="font-display text-3xl font-extrabold flex items-center gap-2">
-            <Sparkles size={28} className="text-primary" /> Lançamento com IA
-          </h1>
-          <p className="text-slate-500">Envie o PDF da fatura e a IA extrai tudo automaticamente</p>
-        </div>
+        <PageHeader
+          backHref="/financeiro/despesas"
+          backLabel="Voltar para Despesas"
+          title="Lançamento com IA"
+          subtitle="Envie o PDF da fatura e a IA extrai tudo automaticamente"
+        />
 
         <motion.div
           className={`rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors ${

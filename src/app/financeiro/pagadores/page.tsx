@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Pencil, Users, ChevronLeft, Download } from "lucide-react";
-import Link from "next/link";
+import { Plus, Trash2, Pencil, Users, Download } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { PagadorForm, iconeDoPagador } from "@/components/financeiro/PagadorForm";
 
 type Tipo = "pessoa_fisica" | "pessoa_juridica" | "outro";
@@ -72,27 +72,24 @@ export default function PagadoresPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/financeiro" className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-700 mb-1">
-            <ChevronLeft size={14} /> Finanças
-          </Link>
-          <h1 className="font-display text-3xl font-extrabold flex items-center gap-2">
-            <Users size={28} className="text-primary" /> Pagadores
-          </h1>
-          <p className="text-slate-500">Organize quem te paga</p>
-        </div>
-        <div className="flex gap-2">
-          {legado && legado.nomesDistintos > 0 && (
-            <Button variant="outline" onClick={handleImportar} disabled={importando}>
-              <Download size={16} /> {importando ? "Importando..." : "Importar das receitas"}
+      <PageHeader
+        backHref="/financeiro"
+        backLabel="Voltar para Finanças"
+        title="Pagadores"
+        subtitle="Organize quem te paga"
+        actions={
+          <>
+            {legado && legado.nomesDistintos > 0 && (
+              <Button variant="outline" onClick={handleImportar} disabled={importando}>
+                <Download size={16} /> {importando ? "Importando..." : "Importar das receitas"}
+              </Button>
+            )}
+            <Button onClick={() => { setEditing(null); setShowForm(true); }}>
+              <Plus size={16} /> Novo
             </Button>
-          )}
-          <Button onClick={() => { setEditing(null); setShowForm(true); }}>
-            <Plus size={16} /> Novo
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {legado && legado.nomesDistintos > 0 && !msgImport && (
         <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">

@@ -30,7 +30,9 @@ export const transcreverAudio = internalAction({
     form.append("language", "pt");
     form.append("response_format", "json");
 
-    const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    // Usa baseURL configurável (OmniRouter ou outro proxy compatível com OpenAI).
+    const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+    const resp = await fetch(`${baseUrl}/audio/transcriptions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,

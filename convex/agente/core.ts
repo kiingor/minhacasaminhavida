@@ -6,8 +6,12 @@ import type { Id } from "../_generated/dataModel";
 import { TOOL_DEFS, executarTool, type ToolExecCtx } from "./tools";
 import { montarPromptTitulo, montarSystemPrompt } from "./prompts";
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-6";
+// Agente IA via API compatível OpenAI (usa OmniRouter por padrão).
+// Migrado de Anthropic Claude para OpenAI — tool use vira function calling,
+// images viram image_url, PDFs são desabilitados (envie como imagem).
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+const MODEL = "gpt-4o";
+const MODEL_TITULO = "gpt-4o-mini";
 const MAX_TOOL_ITERATIONS = 8;
 const MAX_HISTORICO_MENSAGENS = 30;
 
@@ -18,25 +22,58 @@ type AnexoInput = {
   mediaType: string;
 };
 
-type ContentBlock =
-  | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: string; data: string } }
-  | { type: "tool_use"; id: string; name: string; input: any }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+// Content parts no formato OpenAI Chat Completions.
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } };
 
-interface AnthropicMessage {
-  role: "user" | "assistant";
-  content: ContentBlock[] | string;
+type OpenAIMessage =
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | ContentPart[] }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }>;
+    }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+interface OpenAIChoice {
+  index: number;
+  message: {
+    role: "assistant";
+    content: string | null;
+    tool_calls?: Array<{
+      id: string;
+      type: "function";
+      function: { name: string; arguments: string };
+    }>;
+  };
+  finish_reason: "stop" | "tool_calls" | "length" | "content_filter";
 }
 
-interface AnthropicResponse {
+interface OpenAIResponse {
   id: string;
-  type: "message";
-  role: "assistant";
-  content: ContentBlock[];
-  stop_reason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence";
-  usage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number };
+  choices: OpenAIChoice[];
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+}
+
+// Converte TOOL_DEFS (formato Anthropic) -> formato OpenAI function calling
+function toOpenAITools(): Array<{
+  type: "function";
+  function: { name: string; description: string; parameters: object };
+}> {
+  return TOOL_DEFS.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema as object,
+    },
+  }));
 }
 
 export const processar = action({
@@ -60,8 +97,10 @@ export const processar = action({
     const user = await ctx.runQuery(internal.auth.getUserByToken, { sessionToken });
     if (!user) throw new Error("Não autenticado");
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY não configurada no servidor");
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY não configurada no servidor");
+    const baseUrl = (process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+    const chatUrl = `${baseUrl}/chat/completions`;
 
     // 2) Validar conversa pertence à família
     const conversa = await ctx.runQuery(internal.agente.conversas._getConversaInternal, {
@@ -81,6 +120,10 @@ export const processar = action({
           nome: a.nome,
         });
         anexosProcessados.push({ ...a, transcricao });
+      } else if (a.tipo === "pdf") {
+        // PDFs nativos não são suportados pela maioria dos endpoints OpenAI-compatible.
+        // Por ora, anota como nota no texto e segue. Usuário pode converter em imagem.
+        anexosProcessados.push({ ...a });
       } else {
         const url = await ctx.runQuery(internal.agente.anexos._getStorageUrl, {
           storageId: a.storageId,
@@ -105,6 +148,12 @@ export const processar = action({
       .map((a) => `[Áudio transcrito: "${a.transcricao}"]`);
     if (transcricoes.length > 0) {
       mensagemTextoFinal = [mensagemTextoFinal, ...transcricoes].filter(Boolean).join("\n");
+    }
+    const pdfsNotas = anexosProcessados
+      .filter((a) => a.tipo === "pdf")
+      .map((a) => `[PDF anexado: "${a.nome}" — leitura de PDF temporariamente indisponível, peça ao usuário pra enviar como imagem ou copiar o texto.]`);
+    if (pdfsNotas.length > 0) {
+      mensagemTextoFinal = [mensagemTextoFinal, ...pdfsNotas].filter(Boolean).join("\n");
     }
     if (!mensagemTextoFinal && (anexos?.length ?? 0) > 0) {
       mensagemTextoFinal = "(usuário enviou anexos, sem texto adicional)";
@@ -137,17 +186,28 @@ export const processar = action({
     const historicoSemAtual = historico.filter((m) => m._id !== mensagemIdUsuario);
     const ultimas = historicoSemAtual.slice(-MAX_HISTORICO_MENSAGENS);
 
-    // 6) Montar mensagens para Anthropic
-    // Para mensagens do assistant que usaram tools, expandimos em três turnos:
-    //   assistant: [tool_use blocks]
-    //   user:      [tool_result blocks]   <- precisa vir IMEDIATAMENTE depois
-    //   assistant: [texto final]
-    // Caso contrário, a Anthropic devolve 400: "tool_use ids without tool_result blocks".
-    const messages: AnthropicMessage[] = [];
+    // 6) Montar mensagens no formato OpenAI Chat Completions
+    // Mensagens assistant que usaram tools viram dois "turnos" no formato OpenAI:
+    //   assistant: { content: null, tool_calls: [...] }
+    //   tool:      { role: "tool", tool_call_id: X, content: result }   (uma por tool_call)
+    //   assistant: { content: "texto final" }
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    const mesAtual = hojeISO.slice(0, 7);
+    const systemPrompt = montarSystemPrompt({
+      hojeISO,
+      mesAtual,
+      nomeUsuario: user.name,
+      canal: conversa.canal,
+    });
+
+    const messages: OpenAIMessage[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
     for (const m of ultimas) {
       if (m.role === "assistant") {
-        let toolUses: any[] = [];
-        let toolResults: any[] = [];
+        let toolUses: Array<{ id: string; name: string; input: unknown }> = [];
+        let toolResults: Array<{ tool_use_id: string; content: string; is_error?: boolean }> = [];
         if (m.toolUseBlocks) {
           try { toolUses = JSON.parse(m.toolUseBlocks); } catch {}
         }
@@ -158,81 +218,58 @@ export const processar = action({
         if (toolUses.length > 0) {
           messages.push({
             role: "assistant",
-            content: toolUses.map((t: any) => ({
-              type: "tool_use" as const,
+            content: null,
+            tool_calls: toolUses.map((t) => ({
               id: t.id,
-              name: t.name,
-              input: t.input ?? {},
+              type: "function" as const,
+              function: { name: t.name, arguments: JSON.stringify(t.input ?? {}) },
             })),
           });
-          if (toolResults.length > 0) {
+          for (const tr of toolResults) {
             messages.push({
-              role: "user",
-              content: toolResults.map((t: any) => ({
-                type: "tool_result" as const,
-                tool_use_id: t.tool_use_id,
-                content: t.content,
-                is_error: t.is_error,
-              })),
+              role: "tool",
+              tool_call_id: tr.tool_use_id,
+              content: tr.content,
             });
           }
         }
 
         if (m.content) {
-          messages.push({
-            role: "assistant",
-            content: [{ type: "text" as const, text: m.content }],
-          });
+          messages.push({ role: "assistant", content: m.content });
         }
       } else {
-        // Mensagens de user no DB são sempre texto simples vindo do humano.
         if (m.content) {
           messages.push({ role: "user", content: m.content });
         }
       }
     }
 
-    // Mensagem atual do usuário (com anexos visuais)
-    const conteudoAtual: ContentBlock[] = [];
+    // Mensagem atual do usuário (com imagens em image_url)
+    const contentParts: ContentPart[] = [];
     for (const a of anexosProcessados) {
       if (a.tipo === "imagem" && a.base64) {
-        conteudoAtual.push({
-          type: "image",
-          source: { type: "base64", media_type: a.mediaType, data: a.base64 },
-        });
-      } else if (a.tipo === "pdf" && a.base64) {
-        conteudoAtual.push({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: a.base64 },
+        contentParts.push({
+          type: "image_url",
+          image_url: {
+            url: `data:${a.mediaType};base64,${a.base64}`,
+            detail: "auto",
+          },
         });
       }
+      // PDFs são tratados via nota textual em mensagemTextoFinal acima.
     }
     if (mensagemTextoFinal) {
-      conteudoAtual.push({ type: "text", text: mensagemTextoFinal });
+      contentParts.push({ type: "text", text: mensagemTextoFinal });
     }
-    messages.push({ role: "user", content: conteudoAtual });
+    // Se só tem texto, manda string simples (mais compatível com endpoints variados)
+    if (contentParts.length === 1 && contentParts[0].type === "text") {
+      messages.push({ role: "user", content: contentParts[0].text });
+    } else {
+      messages.push({ role: "user", content: contentParts });
+    }
 
-    // 7) System prompt + tools
-    const hojeISO = new Date().toISOString().slice(0, 10);
-    const mesAtual = hojeISO.slice(0, 7);
-    const systemPrompt = montarSystemPrompt({
-      hojeISO,
-      mesAtual,
-      nomeUsuario: user.name,
-      canal: conversa.canal,
-    });
-
-    // Aplicamos cache_control no último bloco de system para habilitar prompt caching.
-    const systemBlocks = [
-      { type: "text" as const, text: systemPrompt, cache_control: { type: "ephemeral" as const } },
-    ];
-
-    // Anexar cache_control também na última definição de tool
-    const tools = TOOL_DEFS.map((t, i) =>
-      i === TOOL_DEFS.length - 1
-        ? { ...t, cache_control: { type: "ephemeral" as const } }
-        : t
-    );
+    // 7) Tools no formato OpenAI
+    const tools = toOpenAITools();
 
     const execCtx: ToolExecCtx = {
       ctx,
@@ -246,81 +283,77 @@ export const processar = action({
     // 8) Tool loop
     let iter = 0;
     let finalText = "";
-    const acumuladoToolUse: Array<{ id: string; name: string; input: any }> = [];
+    const acumuladoToolUse: Array<{ id: string; name: string; input: unknown }> = [];
     const acumuladoToolResults: Array<{ tool_use_id: string; content: string; is_error?: boolean }> = [];
 
     while (iter < MAX_TOOL_ITERATIONS) {
       iter++;
-      const resp = await fetch(ANTHROPIC_URL, {
+      const resp = await fetch(chatUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "pdfs-2024-09-25",
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 4096,
-          system: systemBlocks,
           tools,
+          tool_choice: "auto",
           messages,
         }),
       });
 
       if (!resp.ok) {
         const err = await resp.text();
-        throw new Error(`Anthropic API ${resp.status}: ${err}`);
+        throw new Error(`OpenAI API ${resp.status}: ${err}`);
       }
 
-      const data = (await resp.json()) as AnthropicResponse;
+      const data = (await resp.json()) as OpenAIResponse;
+      const choice = data.choices?.[0];
+      if (!choice) throw new Error("OpenAI: resposta sem choices");
+      const message = choice.message;
 
-      // Coletar texto e tool_use blocks
-      const textoDessaRodada = data.content
-        .filter((b) => b.type === "text")
-        .map((b: any) => b.text)
-        .join("\n")
-        .trim();
-      const toolUses = data.content.filter((b) => b.type === "tool_use") as Array<{
-        type: "tool_use";
-        id: string;
-        name: string;
-        input: any;
-      }>;
-
+      // Texto da rodada (pode ser null em tool_calls only)
+      const textoDessaRodada = (message.content ?? "").trim();
       if (textoDessaRodada) {
         finalText = finalText ? `${finalText}\n${textoDessaRodada}` : textoDessaRodada;
       }
 
-      if (data.stop_reason === "tool_use" && toolUses.length > 0) {
-        // Adiciona resposta do assistente (texto + tool_use) no histórico de mensagens p/ próximo turno
-        messages.push({ role: "assistant", content: data.content });
+      const toolCalls = message.tool_calls ?? [];
 
-        const toolResultsBlocks: ContentBlock[] = [];
-        for (const tu of toolUses) {
-          acumuladoToolUse.push({ id: tu.id, name: tu.name, input: tu.input });
-          const result = await executarTool(tu.name, tu.input ?? {}, execCtx);
+      if (choice.finish_reason === "tool_calls" && toolCalls.length > 0) {
+        // Adiciona o assistant turn com tool_calls
+        messages.push({
+          role: "assistant",
+          content: message.content ?? null,
+          tool_calls: toolCalls,
+        });
+
+        for (const tc of toolCalls) {
+          let parsedInput: unknown = {};
+          try { parsedInput = JSON.parse(tc.function.arguments || "{}"); } catch {}
+          acumuladoToolUse.push({ id: tc.id, name: tc.function.name, input: parsedInput });
+
+          const result = await executarTool(tc.function.name, (parsedInput as Record<string, unknown>) ?? {}, execCtx);
           const conteudo = result.ok
             ? JSON.stringify(result.data ?? { ok: true })
             : `Erro: ${result.error ?? "desconhecido"}`;
-          const block = {
-            type: "tool_result" as const,
-            tool_use_id: tu.id,
+
+          messages.push({
+            role: "tool",
+            tool_call_id: tc.id,
             content: conteudo,
-            is_error: !result.ok,
-          };
-          toolResultsBlocks.push(block);
+          });
           acumuladoToolResults.push({
-            tool_use_id: tu.id,
+            tool_use_id: tc.id,
             content: conteudo,
             is_error: !result.ok,
           });
         }
-        messages.push({ role: "user", content: toolResultsBlocks });
         continue;
       }
 
-      // end_turn ou max_tokens — sair do loop
+      // stop, length ou content_filter — sair do loop
       break;
     }
 
@@ -342,27 +375,23 @@ export const processar = action({
     // 10) Se for 1ª mensagem da conversa, gerar título
     if (historicoSemAtual.length === 0 && conversa.titulo === "Nova conversa") {
       try {
-        const tituloResp = await fetch(ANTHROPIC_URL, {
+        const tituloResp = await fetch(chatUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
+            Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: MODEL_TITULO,
             max_tokens: 30,
             messages: [
-              {
-                role: "user",
-                content: montarPromptTitulo(mensagemTextoFinal),
-              },
+              { role: "user", content: montarPromptTitulo(mensagemTextoFinal) },
             ],
           }),
         });
         if (tituloResp.ok) {
-          const tdata = (await tituloResp.json()) as { content: Array<{ type: string; text: string }> };
-          const titulo = tdata.content[0]?.text?.trim().replace(/^["']|["']$/g, "");
+          const tdata = (await tituloResp.json()) as OpenAIResponse;
+          const titulo = tdata.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, "");
           if (titulo) {
             await ctx.runMutation(internal.agente.conversas._atualizarTituloInternal, {
               conversaId,

@@ -1,12 +1,14 @@
 "use client";
 import { useQuery } from "convex/react";
-import { Image as ImageIcon, FileText, Mic, X } from "lucide-react";
+import { Image as ImageIcon, FileText, Mic, X, Table2 } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 
+export type TipoAnexo = "imagem" | "pdf" | "audio" | "csv";
+
 export type AnexoLocal = {
-  tipo: "imagem" | "pdf" | "audio";
+  tipo: TipoAnexo;
   file: File;
   url: string; // ObjectURL para preview
   nome: string;
@@ -26,6 +28,8 @@ export function AnexoPreview({
         <img src={anexo.url} alt={anexo.nome} className="h-8 w-8 rounded object-cover" />
       ) : anexo.tipo === "pdf" ? (
         <FileText size={16} className="text-rose-500" />
+      ) : anexo.tipo === "csv" ? (
+        <Table2 size={16} className="text-emerald-600" />
       ) : (
         <Mic size={16} className="text-violet-500" />
       )}
@@ -48,7 +52,7 @@ export function AnexoPersistido({
   anexo,
 }: {
   anexo: {
-    tipo: "imagem" | "pdf" | "audio";
+    tipo: TipoAnexo;
     nome: string;
     transcricao?: string;
     storageId: Id<"_storage">;
@@ -57,7 +61,7 @@ export function AnexoPersistido({
   const token = useSessionToken();
   const url = useQuery(
     api.agente.anexos.obterUrlAnexo,
-    token && (anexo.tipo === "imagem" || anexo.tipo === "pdf")
+    token && (anexo.tipo === "imagem" || anexo.tipo === "pdf" || anexo.tipo === "csv")
       ? { sessionToken: token, storageId: anexo.storageId }
       : "skip"
   );
@@ -87,6 +91,20 @@ export function AnexoPersistido({
       </a>
     );
   }
+  if (anexo.tipo === "csv") {
+    return (
+      <a
+        href={url ?? "#"}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs hover:bg-emerald-100"
+      >
+        <Table2 size={14} className="text-emerald-600" />
+        <span className="font-medium text-slate-700">{anexo.nome}</span>
+        <span className="text-emerald-700">CSV</span>
+      </a>
+    );
+  }
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs max-w-md">
       <div className="mb-1 flex items-center gap-2 font-medium text-violet-700">
@@ -101,8 +119,9 @@ export function AnexoPersistido({
   );
 }
 
-export function IconePorTipo({ tipo }: { tipo: "imagem" | "pdf" | "audio" }) {
+export function IconePorTipo({ tipo }: { tipo: TipoAnexo }) {
   if (tipo === "imagem") return <ImageIcon size={14} />;
   if (tipo === "pdf") return <FileText size={14} />;
+  if (tipo === "csv") return <Table2 size={14} />;
   return <Mic size={14} />;
 }

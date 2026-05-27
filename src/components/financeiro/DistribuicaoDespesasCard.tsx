@@ -118,11 +118,11 @@ export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel }:
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <div className="font-mono font-bold text-2xl text-ink-900 tabular-nums leading-tight">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-4">
+            <div className="font-mono font-bold text-lg sm:text-xl text-ink-900 tabular-nums leading-tight tracking-tight whitespace-nowrap">
               {formatBRL(total)}
             </div>
-            <div className="text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold mt-1">
+            <div className="text-[9px] uppercase tracking-[0.1em] text-ink-400 font-semibold mt-1 whitespace-nowrap">
               Total despesas
             </div>
           </div>

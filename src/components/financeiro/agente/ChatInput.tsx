@@ -16,7 +16,7 @@ export function ChatInput({
   onEnviar: (
     texto: string,
     anexos: Array<{
-      tipo: "imagem" | "pdf" | "audio";
+      tipo: "imagem" | "pdf" | "audio" | "csv";
       storageId: string;
       nome: string;
       mediaType: string;
@@ -132,7 +132,7 @@ export function ChatInput({
     setErro(null);
     try {
       const anexosUpload: Array<{
-        tipo: "imagem" | "pdf" | "audio";
+        tipo: "imagem" | "pdf" | "audio" | "csv";
         storageId: string;
         nome: string;
         mediaType: string;
@@ -192,7 +192,7 @@ export function ChatInput({
           type="file"
           hidden
           multiple
-          accept="image/*,application/pdf"
+          accept="image/*,application/pdf,text/csv,.csv"
           onChange={(e) => {
             adicionarArquivos(e.target.files);
             e.target.value = "";
@@ -204,7 +204,7 @@ export function ChatInput({
           disabled={desabilitado || gravando}
           className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
           aria-label="Anexar arquivo"
-          title="Anexar imagem ou PDF"
+          title="Anexar imagem, PDF ou CSV"
         >
           <Paperclip size={18} />
         </button>
@@ -252,15 +252,18 @@ export function ChatInput({
   );
 }
 
-function detectarTipo(mt: string, nome: string): "imagem" | "pdf" | "audio" | null {
+function detectarTipo(mt: string, nome: string): "imagem" | "pdf" | "audio" | "csv" | null {
+  const lower = nome.toLowerCase();
   if (mt.startsWith("image/")) return "imagem";
-  if (mt === "application/pdf" || nome.toLowerCase().endsWith(".pdf")) return "pdf";
+  if (mt === "application/pdf" || lower.endsWith(".pdf")) return "pdf";
   if (mt.startsWith("audio/")) return "audio";
+  if (mt === "text/csv" || mt === "application/vnd.ms-excel" || lower.endsWith(".csv")) return "csv";
   return null;
 }
 
-function mediaTypeFallback(t: "imagem" | "pdf" | "audio"): string {
+function mediaTypeFallback(t: "imagem" | "pdf" | "audio" | "csv"): string {
   if (t === "imagem") return "image/jpeg";
   if (t === "pdf") return "application/pdf";
+  if (t === "csv") return "text/csv";
   return "audio/webm";
 }

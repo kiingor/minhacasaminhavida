@@ -16,7 +16,7 @@ const MAX_TOOL_ITERATIONS = 8;
 const MAX_HISTORICO_MENSAGENS = 30;
 
 type AnexoInput = {
-  tipo: "imagem" | "pdf" | "audio";
+  tipo: "imagem" | "pdf" | "audio" | "csv";
   storageId: Id<"_storage">;
   nome: string;
   mediaType: string;
@@ -84,7 +84,12 @@ export const processar = action({
     anexos: v.optional(
       v.array(
         v.object({
-          tipo: v.union(v.literal("imagem"), v.literal("pdf"), v.literal("audio")),
+          tipo: v.union(
+            v.literal("imagem"),
+            v.literal("pdf"),
+            v.literal("audio"),
+            v.literal("csv"),
+          ),
           storageId: v.id("_storage"),
           nome: v.string(),
           mediaType: v.string(),
@@ -111,7 +116,7 @@ export const processar = action({
     }
 
     // 3) Pré-processar anexos
-    const anexosProcessados: Array<AnexoInput & { transcricao?: string; base64?: string }> = [];
+    const anexosProcessados: Array<AnexoInput & { transcricao?: string; base64?: string; csvTexto?: string }> = [];
     for (const a of anexos ?? []) {
       if (a.tipo === "audio") {
         const transcricao = await ctx.runAction(internal.agente.transcricao.transcreverAudio, {
@@ -124,6 +129,18 @@ export const processar = action({
         // PDFs nativos não são suportados pela maioria dos endpoints OpenAI-compatible.
         // Por ora, anota como nota no texto e segue. Usuário pode converter em imagem.
         anexosProcessados.push({ ...a });
+      } else if (a.tipo === "csv") {
+        // CSV: baixa texto e injeta como contexto pro modelo
+        const url = await ctx.runQuery(internal.agente.anexos._getStorageUrl, {
+          storageId: a.storageId,
+        });
+        if (!url) throw new Error(`Anexo ${a.nome} não encontrado no storage`);
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Falha ao baixar anexo ${a.nome}`);
+        const texto = await resp.text();
+        // Limita a 50KB pra não estourar contexto
+        const csvTexto = texto.length > 50_000 ? texto.slice(0, 50_000) + "\n... [truncado]" : texto;
+        anexosProcessados.push({ ...a, csvTexto });
       } else {
         const url = await ctx.runQuery(internal.agente.anexos._getStorageUrl, {
           storageId: a.storageId,
@@ -154,6 +171,16 @@ export const processar = action({
       .map((a) => `[PDF anexado: "${a.nome}" — leitura de PDF temporariamente indisponível, peça ao usuário pra enviar como imagem ou copiar o texto.]`);
     if (pdfsNotas.length > 0) {
       mensagemTextoFinal = [mensagemTextoFinal, ...pdfsNotas].filter(Boolean).join("\n");
+    }
+    const csvBlocos = anexosProcessados
+      .filter((a) => a.tipo === "csv" && a.csvTexto)
+      .map((a) => {
+        return `[CSV anexado: "${a.nome}"]\n` +
+          `Conteúdo bruto (use pra extrair lançamentos, geralmente é fatura de cartão):\n` +
+          "```csv\n" + a.csvTexto + "\n```";
+      });
+    if (csvBlocos.length > 0) {
+      mensagemTextoFinal = [mensagemTextoFinal, ...csvBlocos].filter(Boolean).join("\n\n");
     }
     if (!mensagemTextoFinal && (anexos?.length ?? 0) > 0) {
       mensagemTextoFinal = "(usuário enviou anexos, sem texto adicional)";

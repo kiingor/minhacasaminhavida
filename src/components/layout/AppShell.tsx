@@ -9,6 +9,7 @@ import { useSession, useSessionToken } from "@/contexts/SessionContext";
 import { cn } from "@/lib/utils";
 import { NotificacoesBell } from "@/components/notificacoes/NotificacoesBell";
 import { Logo } from "@/components/ui/logo";
+import { AgenteFAB } from "@/components/financeiro/agente/AgenteFAB";
 
 const navFamilia = [
   { href: "/",             label: "Início",   icon: Home },
@@ -168,6 +169,9 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      {/* FAB do Agente IA (apenas família) */}
+      {!isConsultor && <AgenteFAB />}
     </div>
   );
 }

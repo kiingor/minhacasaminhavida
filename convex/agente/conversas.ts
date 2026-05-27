@@ -139,7 +139,12 @@ export const _inserirMensagemInternal = internalMutation({
     anexos: v.optional(
       v.array(
         v.object({
-          tipo: v.union(v.literal("imagem"), v.literal("pdf"), v.literal("audio")),
+          tipo: v.union(
+            v.literal("imagem"),
+            v.literal("pdf"),
+            v.literal("audio"),
+            v.literal("csv"),
+          ),
           storageId: v.id("_storage"),
           nome: v.string(),
           mediaType: v.string(),

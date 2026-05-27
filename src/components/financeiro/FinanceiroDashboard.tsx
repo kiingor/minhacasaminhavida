@@ -16,6 +16,9 @@ import { AlertasInsightsCard } from "@/components/financeiro/AlertasInsightsCard
 import { ScoreSaudeCard } from "@/components/financeiro/ScoreSaudeCard";
 import { KpiStrip } from "@/components/financeiro/KpiStrip";
 import { DistribuicaoDespesasCard } from "@/components/financeiro/DistribuicaoDespesasCard";
+import { FluxoCaixaCard } from "@/components/financeiro/FluxoCaixaCard";
+import { OrcamentoCategoriasCard } from "@/components/financeiro/OrcamentoCategoriasCard";
+import { MetasFinanceirasCard } from "@/components/financeiro/MetasFinanceirasCard";
 import { PagadorCasalChart } from "@/components/financeiro/PagadorCasalChart";
 import { DivisaoProporcionalCard } from "@/components/financeiro/DivisaoProporcionalCard";
 import { DicaDoDia } from "@/components/educacao/DicaDoDia";
@@ -193,6 +196,17 @@ export function FinanceiroDashboard({
           resumo={resumo ? { totalReceitas: resumo.totalReceitas } : undefined}
           mesLabel={monthLabelLong(mes)}
         />
+      </motion.section>
+
+      {/* 8.1 Fluxo de caixa */}
+      <motion.section variants={item}>
+        <FluxoCaixaCard mes={mes} meses={6} />
+      </motion.section>
+
+      {/* 8.2 Orçamento por categoria + Metas */}
+      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+        <OrcamentoCategoriasCard mes={mes} limite={6} />
+        <MetasFinanceirasCard limite={4} />
       </motion.section>
 
       {/* 9. Casal */}

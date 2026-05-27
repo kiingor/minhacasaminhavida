@@ -236,6 +236,7 @@ export default function OrcamentoPage() {
                             valorLimite={it.limite}
                             size="sm"
                             onSave={(novo) => handleSetLimite(it.categoriaId, novo)}
+                            onRemove={() => handleSetLimite(it.categoriaId, 0)}
                             ariaLabel={`Editar limite de ${it.nome}`}
                           />
                         ) : (
@@ -316,6 +317,11 @@ export default function OrcamentoPage() {
                                       size="sm"
                                       semLimite={sub.limite === 0}
                                       onSave={(novo) => handleSetLimite(sub.categoriaId, novo)}
+                                      onRemove={
+                                        sub.limite > 0
+                                          ? () => handleSetLimite(sub.categoriaId, 0)
+                                          : undefined
+                                      }
                                       ariaLabel={`Editar limite de ${sub.nome}`}
                                     />
                                   </div>

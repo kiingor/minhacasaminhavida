@@ -271,6 +271,41 @@ export const TOOL_DEFS = [
       required: ["receitaId", "mes"],
     },
   },
+  {
+    name: "propor_lote_despesas_cartao",
+    description:
+      "Cria DRAFTS em lote para uma FATURA DE CARTÃO importada via CSV. Use esta tool quando o usuário anexar um CSV de fatura. Cria 1 draft por item da lista. Antes de chamar, confirme com o usuário: nome do cartão e categoria padrão (use listar_categorias). Ignore linhas de 'Pagamento recebido' (valores negativos = quitação da fatura, não despesa).",
+    input_schema: {
+      type: "object",
+      properties: {
+        cartao: {
+          type: "string",
+          description: "Nome do cartão (ex: 'Nubank'). Vai parar em despesa.cartao.",
+        },
+        categoriaIdPadrao: {
+          type: "string",
+          description: "Id da categoria padrão usada quando o item não tem categoria específica (obrigatório).",
+        },
+        items: {
+          type: "array",
+          description: "Lista de itens da fatura. Cada item vira 1 draft de despesa.",
+          items: {
+            type: "object",
+            properties: {
+              descricao: { type: "string" },
+              valor_centavos: { type: "number", description: "Em centavos. R$ 24,17 = 2417." },
+              dataVencimento: { type: "string", description: "YYYY-MM-DD" },
+              totalParcelas: { type: "number", description: "Opcional: se for parcelada" },
+              parcelaAtual: { type: "number", description: "Opcional: parcela atual quando parcelada" },
+              categoriaId: { type: "string", description: "Opcional: sobrescreve categoria padrão" },
+            },
+            required: ["descricao", "valor_centavos", "dataVencimento"],
+          },
+        },
+      },
+      required: ["cartao", "categoriaIdPadrao", "items"],
+    },
+  },
 ] as const;
 
 // ============================================================
@@ -883,6 +918,79 @@ export async function executarTool(
           criadoPor: exec.userId,
         });
         return { ok: true, draftId, resumo, data: { draftId, resumo, status: "pendente_confirmacao" } };
+      }
+
+      case "propor_lote_despesas_cartao": {
+        const cartao = String(args.cartao ?? "").trim();
+        const categoriaIdPadrao = String(args.categoriaIdPadrao ?? "").trim();
+        const items = Array.isArray(args.items) ? args.items : [];
+        if (!cartao) return { ok: false, error: "cartao obrigatório" };
+        if (!categoriaIdPadrao) return { ok: false, error: "categoriaIdPadrao obrigatório" };
+        if (items.length === 0) return { ok: false, error: "items vazio" };
+
+        const draftIds: string[] = [];
+        let totalCentavos = 0;
+        const falhas: Array<{ descricao: string; motivo: string }> = [];
+
+        for (const raw of items) {
+          try {
+            const item = raw as Record<string, unknown>;
+            const descricao = String(item.descricao ?? "").trim();
+            const valor = Math.abs(Math.round(Number(item.valor_centavos) || 0));
+            const dataVencimento = String(item.dataVencimento ?? "").trim();
+            if (!descricao || !valor || !/^\d{4}-\d{2}-\d{2}$/.test(dataVencimento)) {
+              falhas.push({ descricao: descricao || "(sem descrição)", motivo: "dados inválidos" });
+              continue;
+            }
+            const totalParcelas = item.totalParcelas != null ? Number(item.totalParcelas) : undefined;
+            const parcelaAtual = item.parcelaAtual != null ? Number(item.parcelaAtual) : undefined;
+            const categoriaId = item.categoriaId ? String(item.categoriaId) : categoriaIdPadrao;
+            const tipo = totalParcelas && totalParcelas > 1 ? "parcelada" : "avulsa";
+
+            const payload = {
+              descricao,
+              valor,
+              tipo,
+              categoriaId,
+              dataVencimento,
+              cartao,
+              totalParcelas,
+              parcelaAtual,
+            };
+            const resumo = `${descricao} — ${fmtBRL(valor)} — venc. ${dataVencimento} — ${cartao}${
+              totalParcelas ? ` — parcela ${parcelaAtual ?? 1}/${totalParcelas}` : ""
+            }`;
+            const draftId = await exec.ctx.runMutation(internal.agente.drafts._criarDraftInternal, {
+              conversaId: exec.conversaId,
+              mensagemId: exec.mensagemId,
+              tipo: "despesa",
+              payload: JSON.stringify(payload),
+              resumo,
+              familyId: exec.familyId,
+              criadoPor: exec.userId,
+            });
+            draftIds.push(draftId as string);
+            totalCentavos += valor;
+          } catch (e: unknown) {
+            falhas.push({
+              descricao: "(erro)",
+              motivo: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+
+        return {
+          ok: true,
+          data: {
+            criados: draftIds.length,
+            totalFatura: fmtBRL(totalCentavos),
+            cartao,
+            falhas,
+            mensagemSugerida: `Importei ${draftIds.length} lançamentos da fatura ${cartao} (total ${fmtBRL(totalCentavos)})${
+              falhas.length > 0 ? `, ${falhas.length} com falha` : ""
+            }. Revise os drafts abaixo e confirme um por um.`,
+          },
+        };
       }
 
       default:

@@ -1,5 +1,5 @@
 "use client";
-import { useState, use } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
@@ -24,9 +24,9 @@ import { currentMonth } from "@/lib/monthUtils";
 export default function ConsultorClientePage({
   params,
 }: {
-  params: Promise<{ familyId: string }>;
+  params: { familyId: string };
 }) {
-  const { familyId } = use(params);
+  const { familyId } = params;
   const token = useSessionToken();
   const [mes, setMes] = useState(currentMonth());
   const [showAgendar, setShowAgendar] = useState(false);

@@ -1120,10 +1120,16 @@ export const saldoEfetivado = query({
 
 // 2) Saldo projetado: efetivado + receitas pendentes do mes - despesas pendentes do mes
 export const saldoProjetado = query({
-  args: { sessionToken: v.string(), familyIdAlvo: v.optional(v.string()) },
-  handler: async (ctx, { sessionToken, familyIdAlvo }) => {
+  args: {
+    sessionToken: v.string(),
+    familyIdAlvo: v.optional(v.string()),
+    // Mês alvo da projeção (YYYY-MM). Se ausente, usa mês atual do servidor.
+    // Importante quando o usuário navega entre meses na UI.
+    mes: v.optional(v.string()),
+  },
+  handler: async (ctx, { sessionToken, familyIdAlvo, mes }) => {
     const { familyId } = await resolveFamilyContext(ctx, sessionToken, familyIdAlvo);
-    const mesAtual = currentMonth();
+    const mesAtual = mes ?? currentMonth();
 
     // Saldo efetivado (mesmo calculo da query saldoEfetivado, inline para 1 chamada)
     const contas = await ctx.db

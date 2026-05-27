@@ -101,7 +101,8 @@ export function FinanceiroDashboard({
   const cartaoVista = useQuery(api.financeiro.dashboardFinanceiro.cartaoVsAVista, baseArgsMes);
   const estouradas = useQuery(api.financeiro.dashboardFinanceiro.categoriasEstouradas, baseArgsMes);
   const saldoEfetivado = useQuery(api.financeiro.dashboardFinanceiro.saldoEfetivado, baseArgs);
-  const saldoProjetado = useQuery(api.financeiro.dashboardFinanceiro.saldoProjetado, baseArgs);
+  // Projeção respeita o mês selecionado na UI (mostra "como vai ficar no fim de X")
+  const saldoProjetado = useQuery(api.financeiro.dashboardFinanceiro.saldoProjetado, baseArgsMes);
   const indicadoresSaude = useQuery(api.financeiro.dashboardFinanceiro.indicadoresSaude, baseArgsMes);
   const distribuicao = useQuery(api.financeiro.dashboardFinanceiro.despesasPorCategoria, baseArgsMes);
   const pagadorCasal = useQuery(api.financeiro.dashboardFinanceiro.despesasPorPagadorCasal, baseArgsMes);

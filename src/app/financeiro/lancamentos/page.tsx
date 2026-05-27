@@ -89,6 +89,8 @@ interface GrupoCartao {
   itens: LancamentoItemData[];
   total: number;
   qtd: number;
+  totalPendente: number;
+  qtdPendente: number;
   cor?: string;
   bandeira?: string;
 }
@@ -125,6 +127,8 @@ export default function LancamentosPage() {
 
   // Cartões expandidos (default: todos minimizados)
   const [cartoesExpandidos, setCartoesExpandidos] = useState<Set<string>>(new Set());
+  // Fatura sendo paga via dialog (null quando fechado)
+  const [faturaPagar, setFaturaPagar] = useState<GrupoCartao | null>(null);
 
   useEffect(() => {
     setSelecao(new Set());
@@ -255,12 +259,23 @@ export default function LancamentosPage() {
       if (item.tipo !== "despesa" || !item.cartao) continue;
       const key = item.cartao;
       if (!map.has(key)) {
-        map.set(key, { cartao: key, itens: [], total: 0, qtd: 0 });
+        map.set(key, {
+          cartao: key,
+          itens: [],
+          total: 0,
+          qtd: 0,
+          totalPendente: 0,
+          qtdPendente: 0,
+        });
       }
       const g = map.get(key)!;
       g.itens.push(item);
       g.total += item.valor;
       g.qtd += 1;
+      if (!item.pago) {
+        g.totalPendente += item.valor;
+        g.qtdPendente += 1;
+      }
     }
     // Decora com cor/bandeira dos cartões cadastrados
     const cartoesMap = new Map((cartoes ?? []).map((c) => [c.nome, c]));
@@ -382,6 +397,37 @@ export default function LancamentosPage() {
 
   function abrirEfetivarDialog() {
     setEfetivarDialogAberto(true);
+  }
+
+  async function confirmarPagamentoFatura(contaId: Id<"contas"> | null) {
+    if (!token || !faturaPagar) return;
+    setProcessando(true);
+    try {
+      const items = faturaPagar.itens
+        .filter((l) => l.tipo === "despesa" && !l.pago)
+        .map((l) => ({
+          tipo: "despesa" as const,
+          id: l.id as Id<"despesas">,
+          mes: (l as { _projectedMes: string })._projectedMes,
+        }));
+      if (items.length === 0) {
+        setFeedback({ tipo: "erro", mensagem: "Não há lançamentos pendentes nesta fatura" });
+        return;
+      }
+      const r = await bulkMarcarEfetivado({
+        sessionToken: token,
+        items,
+        contaId: contaId ?? undefined,
+      });
+      mostrarFeedback(r, "lançamento efetivado", "lançamentos efetivados");
+    } catch (err) {
+      setFeedback({
+        tipo: "erro",
+        mensagem: err instanceof Error ? err.message : "Erro ao pagar fatura",
+      });
+    } finally {
+      setProcessando(false);
+    }
   }
 
   async function confirmarEfetivacaoBulk(contaId: Id<"contas"> | null) {
@@ -548,10 +594,17 @@ export default function LancamentosPage() {
                 const expandido = cartoesExpandidos.has(gc.cartao);
                 return (
                   <Card key={gc.cartao} padding="none" className="overflow-hidden">
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => toggleCartaoExpansao(gc.cartao)}
-                      className="w-full p-3 flex items-center gap-3 hover:bg-cream-50/60 transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleCartaoExpansao(gc.cartao);
+                        }
+                      }}
+                      className="w-full p-3 flex items-center gap-3 hover:bg-cream-50/60 transition-colors cursor-pointer"
                       aria-expanded={expandido}
                     >
                       <div
@@ -574,19 +627,41 @@ export default function LancamentosPage() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-cream-100 text-ink-500">
                             {gc.qtd} {gc.qtd === 1 ? "lançamento" : "lançamentos"}
                           </span>
+                          {gc.qtdPendente > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral-100 text-coral-700 font-medium">
+                              {gc.qtdPendente} pendente{gc.qtdPendente === 1 ? "" : "s"}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-ink-400 mt-0.5">Fatura do mês</div>
+                        <div className="text-xs text-ink-400 mt-0.5">
+                          {gc.qtdPendente > 0
+                            ? `Pendente: ${formatBRL(gc.totalPendente)}`
+                            : "Fatura quitada"}
+                        </div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-mono font-bold text-ink-900 tabular-nums">
                           {formatBRL(gc.total)}
                         </div>
                       </div>
+                      {gc.qtdPendente > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFaturaPagar(gc);
+                          }}
+                          className="shrink-0 inline-flex items-center gap-1 h-9 px-3 rounded-full bg-coral-500 text-white text-xs font-medium hover:bg-coral-600 shadow-pop transition-colors"
+                          aria-label={`Pagar fatura do cartão ${gc.cartao}`}
+                        >
+                          <CheckCircle2 size={14} /> Pagar
+                        </button>
+                      )}
                       <ChevronDown
                         size={16}
                         className={`text-ink-400 transition-transform shrink-0 ${expandido ? "rotate-180" : ""}`}
                       />
-                    </button>
+                    </div>
                     <AnimatePresence initial={false}>
                       {expandido && (
                         <motion.div
@@ -765,6 +840,16 @@ export default function LancamentosPage() {
           />
         );
       })()}
+
+      {/* Pagar fatura inteira do cartão */}
+      <EfetivarDialog
+        open={!!faturaPagar}
+        onClose={() => setFaturaPagar(null)}
+        onConfirm={confirmarPagamentoFatura}
+        quantidade={faturaPagar?.qtdPendente ?? 0}
+        valorTotal={faturaPagar?.totalPendente}
+        tipo="despesa"
+      />
 
       <ConfirmDialog
         open={confirmarExclusaoBulkAberto}

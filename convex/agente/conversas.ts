@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalQuery } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 
 export const list = query({
   args: { sessionToken: v.string() },
@@ -103,8 +103,30 @@ export const remover = mutation({
       .query("draftsLancamento")
       .withIndex("by_conversa", (q) => q.eq("conversaId", id))
       .collect();
-    for (const d of drafts) await ctx.db.delete(d._id);
+    // Audita drafts pendentes que serão apagados junto com a conversa
+    for (const d of drafts) {
+      if (d.status === "pendente") {
+        await logExclusao(ctx, {
+          entityType: "draft",
+          entityId: d._id as string,
+          entityData: d,
+          mutationCalled: "conversas.remover (cascade)",
+          contexto: `conversaId=${id}`,
+          familyId: user.familyId,
+          userId: user._id,
+        });
+      }
+      await ctx.db.delete(d._id);
+    }
 
+    await logExclusao(ctx, {
+      entityType: "conversa",
+      entityId: c._id as string,
+      entityData: { titulo: c.titulo, criadoEm: c.criadoEm, ultimaMensagemEm: c.ultimaMensagemEm },
+      mutationCalled: "conversas.remover",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.delete(id);
   },
 });

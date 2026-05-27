@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 
 export const list = query({
   args: {
@@ -91,6 +91,14 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const t = await ctx.db.get(id);
     if (!t || t.familyId !== user.familyId) throw new Error("Transferência não encontrada");
+    await logExclusao(ctx, {
+      entityType: "transferencia",
+      entityId: t._id as string,
+      entityData: t,
+      mutationCalled: "transferencias.remove",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.delete(id);
   },
 });

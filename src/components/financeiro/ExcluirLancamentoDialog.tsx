@@ -81,8 +81,8 @@ export function ExcluirLancamentoDialog({
             <div className="flex items-start gap-3 text-sm text-ink-600">
               <AlertTriangle size={18} className="text-coral-500 mt-0.5 shrink-0" />
               <p>
-                Essa {labelTipo} é {tipoOriginal === "parcelada" ? "parcelada" : "recorrente"} e
-                aparece em vários meses. Escolha o que deseja excluir.
+                Essa {labelTipo} é <b>{tipoOriginal === "parcelada" ? "parcelada" : "recorrente"}</b> —
+                ela aparece em <b>vários meses</b>. Escolha o escopo da exclusão.
               </p>
             </div>
             <div className="space-y-2">
@@ -96,9 +96,9 @@ export function ExcluirLancamentoDialog({
                   {processando === "mes" ? <Loader2 size={16} className="animate-spin" /> : <CalendarX size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-ink-900">Só em {mesLabel}</div>
+                  <div className="font-medium text-ink-900">Ocultar só em {mesLabel}</div>
                   <div className="text-xs text-ink-500">
-                    Mantém em todos os outros meses
+                    Mantém em todos os outros meses · pode ser desfeito
                   </div>
                 </div>
               </button>
@@ -107,15 +107,19 @@ export function ExcluirLancamentoDialog({
                 type="button"
                 disabled={!!processando}
                 onClick={() => executar("todos")}
-                className="w-full text-left rounded-2xl border border-cream-300 bg-white hover:border-ink-900 hover:bg-ink-50 transition-colors p-3 flex items-center gap-3 disabled:opacity-50"
+                className="w-full text-left rounded-2xl border-2 border-ink-900 bg-ink-900/5 hover:bg-ink-900/10 transition-colors p-3 flex items-center gap-3 disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-xl bg-ink-50 text-ink-800 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-ink-900 text-white flex items-center justify-center shrink-0">
                   {processando === "todos" ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-ink-900">Todos os meses</div>
-                  <div className="text-xs text-ink-500">
-                    Remove o lançamento por completo
+                  <div className="font-medium text-ink-900 inline-flex items-center gap-1.5">
+                    Apagar de todos os meses
+                    <AlertTriangle size={12} className="text-coral-600" />
+                  </div>
+                  <div className="text-xs text-ink-600">
+                    Remove a {labelTipo} <b>por completo</b> — some de todos os meses
+                    {tipoOriginal === "parcelada" ? " (todas as parcelas)" : " (passados e futuros)"}
                   </div>
                 </div>
               </button>

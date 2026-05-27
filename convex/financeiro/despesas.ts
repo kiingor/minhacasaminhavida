@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 
 // ===== Helpers de recorrencia =====
 
@@ -276,6 +276,14 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const d = await ctx.db.get(id);
     if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
+    await logExclusao(ctx, {
+      entityType: "despesa",
+      entityId: d._id as string,
+      entityData: d,
+      mutationCalled: "despesas.remove",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.delete(id);
   },
 });
@@ -343,6 +351,15 @@ export const excluirNoMes = mutation({
     if (!/^\d{4}-\d{2}$/.test(mes)) throw new Error("Mês inválido (YYYY-MM)");
     if (d.tipo === "avulsa") {
       // Avulsa só existe em 1 mês — exclui de vez
+      await logExclusao(ctx, {
+        entityType: "despesa",
+        entityId: d._id as string,
+        entityData: d,
+        mutationCalled: "despesas.excluirNoMes (avulsa→delete completo)",
+        contexto: `mes=${mes}`,
+        familyId: user.familyId,
+        userId: user._id,
+      });
       await ctx.db.delete(id);
       return;
     }
@@ -351,6 +368,16 @@ export const excluirNoMes = mutation({
     const semEsteMes = atuais.filter((o) => o.mes !== mes);
     const overrideAtual = atuais.find((o) => o.mes === mes);
     const novo = { ...(overrideAtual ?? { mes }), mes, excluida: true };
+    // Audita override (recuperável)
+    await logExclusao(ctx, {
+      entityType: "override_excluida",
+      entityId: d._id as string,
+      entityData: { despesaId: d._id, titulo: d.descricao, valor: d.valor, tipo: d.tipo, mes },
+      mutationCalled: "despesas.excluirNoMes",
+      contexto: `mes=${mes}`,
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.patch(id, { overrides: [...semEsteMes, novo] });
 
     // Remove pagamento desse mês, se existir

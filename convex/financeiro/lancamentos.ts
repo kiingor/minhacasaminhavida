@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 import { Id } from "../_generated/dataModel";
 
 function monthDiff(from: string, to: string): number {
@@ -383,6 +383,19 @@ export const bulkRemover = mutation({
           }
         }
 
+        // Snapshot ANTES do delete
+        const entityType =
+          item.tipo === "despesa" ? "despesa" :
+          item.tipo === "receita" ? "receita" :
+          "transferencia";
+        await logExclusao(ctx, {
+          entityType,
+          entityId: doc._id as string,
+          entityData: doc,
+          mutationCalled: "lancamentos.bulkRemover",
+          familyId: user.familyId,
+          userId: user._id,
+        });
         await ctx.db.delete(item.id);
         result.sucesso++;
       } catch (err) {

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 
 function monthDiff(from: string, to: string): number {
   const [fy, fm] = from.split("-").map(Number);
@@ -270,6 +270,14 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const r = await ctx.db.get(id);
     if (!r || r.familyId !== user.familyId) throw new Error("Não encontrado");
+    await logExclusao(ctx, {
+      entityType: "receita",
+      entityId: r._id as string,
+      entityData: r,
+      mutationCalled: "receitas.remove",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.delete(id);
   },
 });
@@ -335,6 +343,15 @@ export const excluirNoMes = mutation({
     if (!r || r.familyId !== user.familyId) throw new Error("Não encontrada");
     if (!/^\d{4}-\d{2}$/.test(mes)) throw new Error("Mês inválido (YYYY-MM)");
     if (r.tipo === "avulsa") {
+      await logExclusao(ctx, {
+        entityType: "receita",
+        entityId: r._id as string,
+        entityData: r,
+        mutationCalled: "receitas.excluirNoMes (avulsa→delete completo)",
+        contexto: `mes=${mes}`,
+        familyId: user.familyId,
+        userId: user._id,
+      });
       await ctx.db.delete(id);
       return;
     }
@@ -343,6 +360,16 @@ export const excluirNoMes = mutation({
     const semEsteMes = atuais.filter((o) => o.mes !== mes);
     const overrideAtual = atuais.find((o) => o.mes === mes);
     const novo = { ...(overrideAtual ?? { mes }), mes, excluida: true };
+    // Audita o override de exclusão (recuperável, não deleta receita)
+    await logExclusao(ctx, {
+      entityType: "override_excluida",
+      entityId: r._id as string,
+      entityData: { receitaId: r._id, titulo: r.descricao, valor: r.valor, tipo: r.tipo, mes },
+      mutationCalled: "receitas.excluirNoMes",
+      contexto: `mes=${mes}`,
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.patch(r._id, { overrides: [...semEsteMes, novo] });
 
     const rec = await ctx.db

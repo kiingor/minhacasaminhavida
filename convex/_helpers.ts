@@ -99,3 +99,46 @@ export async function resolveFamilyContext(
   }
   return { user, familyId: familyIdAlvo, accessType: "owner" };
 }
+
+// ============ AUDIT LOG DE EXCLUSÕES ============
+// Grava snapshot do doc ANTES do delete pra permitir investigação/restore.
+// Use sempre que for chamar ctx.db.delete() numa entidade financeira.
+export type AuditEntityType =
+  | "despesa"
+  | "receita"
+  | "transferencia"
+  | "conta"
+  | "draft"
+  | "conversa"
+  | "pagamento"
+  | "recebimento"
+  | "override_excluida";
+
+export async function logExclusao(
+  ctx: MutationCtx,
+  opts: {
+    entityType: AuditEntityType;
+    entityId: string;
+    entityData: unknown; // o doc inteiro antes do delete (ou snapshot do override)
+    mutationCalled: string; // ex: "receitas.remove", "lancamentos.bulkRemover"
+    contexto?: string; // opcional, ex: "mes=2026-05"
+    familyId: string;
+    userId: Id<"users">;
+  }
+): Promise<void> {
+  try {
+    await ctx.db.insert("auditLogExclusoes", {
+      entityType: opts.entityType,
+      entityId: opts.entityId,
+      entityData: JSON.stringify(opts.entityData),
+      mutationCalled: opts.mutationCalled,
+      contexto: opts.contexto,
+      familyId: opts.familyId,
+      userId: opts.userId,
+      criadoEm: new Date().toISOString(),
+    });
+  } catch (err) {
+    // Audit log nunca deve quebrar a mutation principal — só loga em console.
+    console.error("[audit] falha ao registrar exclusão:", err);
+  }
+}

@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown,
+  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown, History,
 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -24,6 +24,7 @@ import {
 import { ReclassificarDialog } from "@/components/financeiro/ReclassificarDialog";
 import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
 import { ExcluirLancamentoDialog, type EscopoExclusao } from "@/components/financeiro/ExcluirLancamentoDialog";
+import { HistoricoExclusoesDialog } from "@/components/financeiro/HistoricoExclusoesDialog";
 import { NovoLancamentoDropdown } from "@/components/financeiro/NovoLancamentoDropdown";
 import { SumarioBarra } from "@/components/financeiro/SumarioBarra";
 import { DespesaForm } from "@/components/financeiro/DespesaForm";
@@ -129,6 +130,8 @@ export default function LancamentosPage() {
   const [cartoesExpandidos, setCartoesExpandidos] = useState<Set<string>>(new Set());
   // Fatura sendo paga via dialog (null quando fechado)
   const [faturaPagar, setFaturaPagar] = useState<GrupoCartao | null>(null);
+  // Dialog de histórico de exclusões / diagnóstico
+  const [historicoAberto, setHistoricoAberto] = useState(false);
 
   useEffect(() => {
     setSelecao(new Set());
@@ -507,6 +510,15 @@ export default function LancamentosPage() {
             <AtalhoCadastro href="/financeiro/categorias" icon={Tag}    label="Categorias" />
             <AtalhoCadastro href="/financeiro/pagadores"  icon={Users}  label="Pagadores" />
             <AtalhoCadastro href="/financeiro/contas"     icon={Wallet} label="Contas" />
+            <button
+              type="button"
+              onClick={() => setHistoricoAberto(true)}
+              aria-label="Histórico de exclusões"
+              title="Diagnóstico e histórico de exclusões"
+              className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-white border border-cream-200 text-ink-500 hover:text-coral-600 hover:border-coral-300 hover:bg-cream-50 transition-colors shadow-soft"
+            >
+              <History size={16} />
+            </button>
             <span className="hidden md:inline-block h-6 w-px bg-cream-200 mx-1" />
             <MonthSelector mes={mes} onChange={setMes} />
             <NovoLancamentoDropdown onSelecionar={(t) => setTipoNovo(t)} />
@@ -849,6 +861,12 @@ export default function LancamentosPage() {
         quantidade={faturaPagar?.qtdPendente ?? 0}
         valorTotal={faturaPagar?.totalPendente}
         tipo="despesa"
+      />
+
+      {/* Diagnóstico de lançamentos + Histórico de exclusões */}
+      <HistoricoExclusoesDialog
+        open={historicoAberto}
+        onClose={() => setHistoricoAberto(false)}
       />
 
       <ConfirmDialog

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, QueryCtx } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 import { Id } from "../_generated/dataModel";
 
 const TIPO_CONTA = v.union(
@@ -117,6 +117,14 @@ export const remove = mutation({
       throw new Error("Esta conta tem transferências registradas e não pode ser excluída. Você pode desativá-la em vez disso.");
     }
 
+    await logExclusao(ctx, {
+      entityType: "conta",
+      entityId: conta._id as string,
+      entityData: conta,
+      mutationCalled: "contas.remove",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.delete(id);
   },
 });

@@ -472,6 +472,33 @@ export default defineSchema({
     .index("by_conversa", ["conversaId"])
     .index("by_conversa_status", ["conversaId", "status"]),
 
+  // ============ AUDIT LOG DE EXCLUSÕES ============
+  // Snapshot completo de cada delete de entidade financeira.
+  // Permite investigar perda acidental e restaurar registros.
+  auditLogExclusoes: defineTable({
+    entityType: v.union(
+      v.literal("despesa"),
+      v.literal("receita"),
+      v.literal("transferencia"),
+      v.literal("conta"),
+      v.literal("draft"),
+      v.literal("conversa"),
+      v.literal("pagamento"),
+      v.literal("recebimento"),
+      v.literal("override_excluida"), // marcou override.excluida = true em um mês
+    ),
+    entityId: v.string(), // _id do documento (string pra aceitar qualquer table)
+    entityData: v.string(), // JSON snapshot completo do doc antes do delete
+    mutationCalled: v.string(), // nome da mutation (ex: "receitas.remove")
+    contexto: v.optional(v.string()), // info extra (ex: "mes=2026-05")
+    familyId: v.string(),
+    userId: v.id("users"),
+    criadoEm: v.string(),
+    restauradoEm: v.optional(v.string()), // se o user restaurou depois
+  })
+    .index("by_family_criado", ["familyId", "criadoEm"])
+    .index("by_family_entity", ["familyId", "entityType"]),
+
   // ============ NOTIFICAÇÕES (Marco 3.C) ============
   notificacoes: defineTable({
     userId: v.id("users"),

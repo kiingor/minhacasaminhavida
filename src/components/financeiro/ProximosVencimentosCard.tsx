@@ -15,6 +15,7 @@ import { useSessionToken } from "@/contexts/SessionContext";
 import { formatBRL, todayISO } from "@/lib/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
 import { currentMonth } from "@/lib/monthUtils";
+import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type Tipo = "despesa" | "receita";
@@ -37,33 +38,41 @@ export function ProximosVencimentosCard({ data }: Props) {
   const togglePago = useMutation(api.financeiro.despesas.togglePago);
   const toggleRecebido = useMutation(api.financeiro.receitas.toggleRecebido);
   const [processando, setProcessando] = useState<string | null>(null);
+  const [itemConfirmar, setItemConfirmar] = useState<Item | null>(null);
 
   if (data === undefined) {
     return <Skeleton className="h-28 rounded-2xl" />;
   }
 
-  async function handleConfirmar(item: Item) {
+  function handleConfirmar(item: Item) {
     if (!token || processando) return;
+    setItemConfirmar(item);
+  }
+
+  async function executarConfirmacao(contaId: Id<"contas"> | null) {
+    if (!token || !itemConfirmar) return;
+    const item = itemConfirmar;
     setProcessando(item.id);
     try {
-      // Card opera sempre no mes corrente da data de vencimento projetada
-      // (a query proximosVencimentos7Dias projeta para mes corrente ou proximo)
       const mesItem = item.dataVencimento.slice(0, 7) || currentMonth();
       if (item.tipo === "despesa") {
         await togglePago({
           sessionToken: token,
           id: item.id as Id<"despesas">,
           mes: mesItem,
+          contaId: contaId ?? undefined,
         });
       } else {
         await toggleRecebido({
           sessionToken: token,
           id: item.id as Id<"receitas">,
           mes: mesItem,
+          contaId: contaId ?? undefined,
         });
       }
     } finally {
       setProcessando(null);
+      setItemConfirmar(null);
     }
   }
 
@@ -154,6 +163,16 @@ export function ProximosVencimentosCard({ data }: Props) {
           </AnimatePresence>
         </ul>
       )}
+
+      <EfetivarDialog
+        open={!!itemConfirmar}
+        onClose={() => setItemConfirmar(null)}
+        onConfirm={executarConfirmacao}
+        quantidade={1}
+        valorTotal={itemConfirmar?.valor}
+        tipo={itemConfirmar?.tipo ?? "despesa"}
+        contaSugeridaId={itemConfirmar?.contaId as Id<"contas"> | undefined}
+      />
     </section>
   );
 }

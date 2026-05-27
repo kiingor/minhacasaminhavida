@@ -55,6 +55,7 @@ export function DespesaForm({ onClose, editData }: Props) {
   const update = useMutation(api.financeiro.despesas.update);
   const removerOverride = useMutation(api.financeiro.despesas.removerOverride);
   const criarCategoria = useMutation(api.financeiro.categorias.create);
+  const criarCartao = useMutation(api.financeiro.cartoes.create);
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token, tipo: "despesa" } : "skip");
   const pessoas = useQuery(api.pessoas.list, token ? { sessionToken: token } : "skip");
   const cartoes = useQuery(api.financeiro.cartoes.list, token ? { sessionToken: token } : "skip");
@@ -119,6 +120,13 @@ export function DespesaForm({ onClose, editData }: Props) {
   const [novaCatCor, setNovaCatCor] = useState("#EF4444");
   const [savingCat, setSavingCat] = useState(false);
 
+  // Novo cartão inline
+  const [showNovoCartao, setShowNovoCartao] = useState(false);
+  const [novoCartaoNome, setNovoCartaoNome] = useState("");
+  const [novoCartaoBandeira, setNovoCartaoBandeira] = useState("Visa");
+  const [novoCartaoCor, setNovoCartaoCor] = useState("#6366F1");
+  const [savingCartao, setSavingCartao] = useState(false);
+
   async function handleCriarCategoria() {
     if (!token || !novaCatNome.trim()) return;
     setSavingCat(true);
@@ -129,6 +137,26 @@ export function DespesaForm({ onClose, editData }: Props) {
       setShowNovaCategoria(false);
     } finally {
       setSavingCat(false);
+    }
+  }
+
+  async function handleCriarCartao() {
+    if (!token || !novoCartaoNome.trim()) return;
+    setSavingCartao(true);
+    try {
+      await criarCartao({
+        sessionToken: token,
+        nome: novoCartaoNome.trim(),
+        bandeira: novoCartaoBandeira || undefined,
+        cor: novoCartaoCor,
+      });
+      // Auto-selecionar o cartão recém-criado (DespesaForm guarda nome como string)
+      setCartao(novoCartaoNome.trim());
+      setContaId(""); // Conta e cartão são mutuamente exclusivos
+      setNovoCartaoNome("");
+      setShowNovoCartao(false);
+    } finally {
+      setSavingCartao(false);
     }
   }
 
@@ -366,7 +394,12 @@ export function DespesaForm({ onClose, editData }: Props) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-slate-700">Cartão (opcional)</label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">Cartão (opcional)</label>
+            <button type="button" onClick={() => setShowNovoCartao((v) => !v)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <Plus size={11} /> Novo cartão
+            </button>
+          </div>
           <select
             value={cartao}
             onChange={(e) => {
@@ -379,10 +412,38 @@ export function DespesaForm({ onClose, editData }: Props) {
             <option value="">Nenhum</option>
             {cartoes?.map((c) => <option key={c._id} value={c.nome}>{c.nome}{c.bandeira ? ` · ${c.bandeira}` : ""}</option>)}
           </select>
-          {cartao && (
+          {cartao && !showNovoCartao && (
             <p className="text-xs text-amber-600 mt-0.5">
               Despesas no cartão não debitam saldo de conta (entram na fatura).
             </p>
+          )}
+          {showNovoCartao && (
+            <div className="flex flex-wrap gap-2 items-center p-2.5 rounded-lg bg-slate-50 border">
+              <input type="color" value={novoCartaoCor} onChange={(e) => setNovoCartaoCor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border-0 p-0 shrink-0" aria-label="Cor do cartão" />
+              <input
+                type="text"
+                placeholder="Nome do cartão"
+                value={novoCartaoNome}
+                onChange={(e) => setNovoCartaoNome(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCriarCartao())}
+                className="flex-1 min-w-[120px] px-2 py-1 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <select
+                value={novoCartaoBandeira}
+                onChange={(e) => setNovoCartaoBandeira(e.target.value)}
+                className="px-2 py-1 rounded-lg border text-sm bg-white"
+                aria-label="Bandeira"
+              >
+                {["Visa", "Mastercard", "Elo", "American Express", "Hipercard", "Outro"].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+              <button type="button" onClick={handleCriarCartao} disabled={!novoCartaoNome.trim() || savingCartao} className="px-2.5 py-1 rounded-lg bg-primary text-white text-xs font-medium disabled:opacity-50">
+                {savingCartao ? "..." : "Criar"}
+              </button>
+              <button type="button" onClick={() => setShowNovoCartao(false)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
+            </div>
           )}
         </div>
 

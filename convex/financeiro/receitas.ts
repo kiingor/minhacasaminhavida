@@ -18,6 +18,7 @@ function aplicarOverrideReceita<
       valor?: number;
       descricao?: string;
       dataPrevisao?: string;
+      excluida?: boolean;
     }>;
   }
 >(r: T, mes: string): T {
@@ -29,6 +30,13 @@ function aplicarOverrideReceita<
     descricao: ov.descricao ?? r.descricao,
     dataPrevisao: ov.dataPrevisao ?? r.dataPrevisao,
   };
+}
+
+function receitaExcluidaNoMes(
+  r: { overrides?: Array<{ mes: string; excluida?: boolean }> },
+  mes: string
+): boolean {
+  return !!(r.overrides ?? []).find((o) => o.mes === mes && o.excluida === true);
 }
 
 function fixaInMesReceita(
@@ -60,6 +68,8 @@ export const listByMonth = query({
 
     const result: Array<Omit<typeof all[number], "recebido" | "dataRecebimento"> & { _projectedMes: string; _parcela?: number; recebido: boolean; dataRecebimento?: string }> = [];
     for (const r of all) {
+      // Pula se excluída especificamente neste mês
+      if (receitaExcluidaNoMes(r, mes)) continue;
       const origMes = r.dataPrevisao.slice(0, 7);
       const rec = recMap.get(r._id as string);
       const baseOverride = { recebido: !!rec, dataRecebimento: rec?.dataRecebimento };
@@ -172,11 +182,23 @@ export const getById = query({
 });
 
 export const toggleRecebido = mutation({
-  args: { sessionToken: v.string(), id: v.id("receitas"), mes: v.string() },
-  handler: async (ctx, { sessionToken, id, mes }) => {
+  args: {
+    sessionToken: v.string(),
+    id: v.id("receitas"),
+    mes: v.string(),
+    // Conta na qual entrou o dinheiro NESTE recebimento.
+    // Se undefined no novo recebimento, fica sem conta (cai no fallback receita.contaId).
+    contaId: v.optional(v.id("contas")),
+  },
+  handler: async (ctx, { sessionToken, id, mes, contaId }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const r = await ctx.db.get(id);
     if (!r || r.familyId !== user.familyId) throw new Error("Não encontrado");
+
+    if (contaId) {
+      const conta = await ctx.db.get(contaId);
+      if (!conta || conta.familyId !== user.familyId) throw new Error("Conta inválida");
+    }
 
     const existente = await ctx.db
       .query("recebimentosReceitas")
@@ -190,6 +212,7 @@ export const toggleRecebido = mutation({
         receitaId: id,
         mes,
         dataRecebimento: new Date().toISOString().slice(0, 10),
+        contaId,
         familyId: user.familyId,
         criadoPor: user._id,
         criadoEm: new Date().toISOString(),
@@ -294,5 +317,38 @@ export const removerOverride = mutation({
     if (!r || r.familyId !== user.familyId) throw new Error("Não encontrado");
     const atuais = r.overrides ?? [];
     await ctx.db.patch(id, { overrides: atuais.filter((o) => o.mes !== mes) });
+  },
+});
+
+// Exclui uma receita recorrente/parcelada APENAS no mês informado.
+// Cria/atualiza um override { mes, excluida: true } sem deletar a receita do banco.
+// Também remove qualquer recebimento associado a esse mês.
+export const excluirNoMes = mutation({
+  args: {
+    sessionToken: v.string(),
+    id: v.id("receitas"),
+    mes: v.string(), // YYYY-MM
+  },
+  handler: async (ctx, { sessionToken, id, mes }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const r = await ctx.db.get(id);
+    if (!r || r.familyId !== user.familyId) throw new Error("Não encontrada");
+    if (!/^\d{4}-\d{2}$/.test(mes)) throw new Error("Mês inválido (YYYY-MM)");
+    if (r.tipo === "avulsa") {
+      await ctx.db.delete(id);
+      return;
+    }
+
+    const atuais = r.overrides ?? [];
+    const semEsteMes = atuais.filter((o) => o.mes !== mes);
+    const overrideAtual = atuais.find((o) => o.mes === mes);
+    const novo = { ...(overrideAtual ?? { mes }), mes, excluida: true };
+    await ctx.db.patch(r._id, { overrides: [...semEsteMes, novo] });
+
+    const rec = await ctx.db
+      .query("recebimentosReceitas")
+      .withIndex("by_receita_mes", (q) => q.eq("receitaId", r._id).eq("mes", mes))
+      .unique();
+    if (rec) await ctx.db.delete(rec._id);
   },
 });

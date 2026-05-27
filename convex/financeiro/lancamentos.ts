@@ -396,11 +396,22 @@ export const bulkMarcarEfetivado = mutation({
   args: {
     sessionToken: v.string(),
     items: v.array(itemRefComMes),
+    // Conta que recebe/paga TODOS os itens efetivados nesta chamada.
+    // Se undefined, mantém comportamento antigo (sem vincular conta).
+    contaId: v.optional(v.id("contas")),
   },
-  handler: async (ctx, { sessionToken, items }): Promise<BulkResult> => {
+  handler: async (ctx, { sessionToken, items, contaId }): Promise<BulkResult> => {
     const user = await getCurrentUser(ctx, sessionToken);
     const result: BulkResult = { sucesso: 0, falhas: [] };
     const hoje = new Date().toISOString().slice(0, 10);
+
+    // Valida conta (se informada) pertence à família do usuário
+    if (contaId) {
+      const conta = await ctx.db.get(contaId);
+      if (!conta || conta.familyId !== user.familyId) {
+        throw new Error("Conta inválida");
+      }
+    }
 
     for (const item of items) {
       try {
@@ -420,10 +431,14 @@ export const bulkMarcarEfetivado = mutation({
               despesaId: item.id,
               mes: item.mes,
               dataPagamento: hoje,
+              contaId,
               familyId: user.familyId,
               criadoPor: user._id,
               criadoEm: new Date().toISOString(),
             });
+          } else if (contaId && existente.contaId !== contaId) {
+            // Idempotente, mas se a conta mudou, atualiza
+            await ctx.db.patch(existente._id, { contaId });
           }
           // Idempotente: se ja existe, conta como sucesso
           result.sucesso++;
@@ -437,10 +452,13 @@ export const bulkMarcarEfetivado = mutation({
               receitaId: item.id,
               mes: item.mes,
               dataRecebimento: hoje,
+              contaId,
               familyId: user.familyId,
               criadoPor: user._id,
               criadoEm: new Date().toISOString(),
             });
+          } else if (contaId && existente.contaId !== contaId) {
+            await ctx.db.patch(existente._id, { contaId });
           }
           result.sucesso++;
         }

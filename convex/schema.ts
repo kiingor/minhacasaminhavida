@@ -120,6 +120,8 @@ export default defineSchema({
           valor: v.optional(v.number()),
           descricao: v.optional(v.string()),
           dataVencimento: v.optional(v.string()),
+          // Marca este mês como excluído (pula projeção sem deletar a despesa)
+          excluida: v.optional(v.boolean()),
         })
       )
     ),
@@ -159,6 +161,8 @@ export default defineSchema({
           valor: v.optional(v.number()),
           descricao: v.optional(v.string()),
           dataPrevisao: v.optional(v.string()),
+          // Marca este mês como excluído (pula projeção sem deletar a receita)
+          excluida: v.optional(v.boolean()),
         })
       )
     ),
@@ -246,6 +250,9 @@ export default defineSchema({
     mes: v.string(),
     dataPagamento: v.string(),
     valorPago: v.optional(v.number()),
+    // Conta da qual saiu o dinheiro NO MOMENTO do pagamento.
+    // Se undefined, fallback para despesa.contaId (compat com dados antigos).
+    contaId: v.optional(v.id("contas")),
     familyId: v.string(),
     criadoPor: v.id("users"),
     criadoEm: v.string(),
@@ -258,6 +265,9 @@ export default defineSchema({
     mes: v.string(),
     dataRecebimento: v.string(),
     valorRecebido: v.optional(v.number()),
+    // Conta na qual entrou o dinheiro NO MOMENTO do recebimento.
+    // Se undefined, fallback para receita.contaId (compat com dados antigos).
+    contaId: v.optional(v.id("contas")),
     familyId: v.string(),
     criadoPor: v.id("users"),
     criadoEm: v.string(),

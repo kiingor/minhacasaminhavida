@@ -1031,38 +1031,49 @@ async function calcularSaldoContaInterno(
   const conta = await ctx.db.get(contaId);
   if (!conta || conta.familyId !== familyId) return 0;
 
-  const receitas = await ctx.db
-    .query("receitas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  // RECEITAS — iterar recebimentos e atribuir à conta efetiva
+  // (recebimento.contaId ?? receita.contaId). Espelha logica de contas.ts::calcularSaldoConta.
+  const todosRecebimentos = await ctx.db
+    .query("recebimentosReceitas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const receitasDaConta = receitas.filter((r) => r.contaId === contaId);
 
   let totalReceitas = 0;
-  for (const r of receitasDaConta) {
-    const recs = await ctx.db
-      .query("recebimentosReceitas")
-      .withIndex("by_receita_mes", (q) => q.eq("receitaId", r._id))
-      .collect();
-    for (const rec of recs) {
-      if (rec.dataRecebimento) totalReceitas += rec.valorRecebido ?? r.valor;
+  for (const rec of todosRecebimentos) {
+    if (!rec.dataRecebimento) continue;
+    let contaResolvida = rec.contaId;
+    let valorFallback: number | undefined;
+    if (!contaResolvida) {
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      contaResolvida = r.contaId;
+      valorFallback = r.valor;
     }
+    if (contaResolvida !== contaId) continue;
+    if (valorFallback === undefined) {
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      valorFallback = r.valor;
+    }
+    totalReceitas += rec.valorRecebido ?? valorFallback;
   }
 
-  const despesas = await ctx.db
-    .query("despesas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  // DESPESAS — iterar pagamentos e atribuir à conta efetiva
+  // (pagamento.contaId ?? despesa.contaId). Exclui despesas com cartao.
+  const todosPagamentos = await ctx.db
+    .query("pagamentosDespesas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const despesasDaConta = despesas.filter((d) => d.contaId === contaId && !d.cartao);
 
   let totalDespesas = 0;
-  for (const d of despesasDaConta) {
-    const pags = await ctx.db
-      .query("pagamentosDespesas")
-      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", d._id))
-      .collect();
-    for (const p of pags) {
-      if (p.dataPagamento) totalDespesas += p.valorPago ?? d.valor;
-    }
+  for (const p of todosPagamentos) {
+    if (!p.dataPagamento) continue;
+    const d = await ctx.db.get(p.despesaId);
+    if (!d) continue;
+    if (d.cartao) continue;
+    const contaResolvida = p.contaId ?? d.contaId;
+    if (contaResolvida !== contaId) continue;
+    totalDespesas += p.valorPago ?? d.valor;
   }
 
   const transfs = await ctx.db

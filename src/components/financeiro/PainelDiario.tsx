@@ -20,6 +20,7 @@ import { formatBRL, todayISO } from "@/lib/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
 import { currentMonth } from "@/lib/monthUtils";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
+import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type Tab = "hoje" | "proximos";
@@ -74,6 +75,7 @@ export function PainelDiario({ familyIdAlvo, readonly = false }: PainelDiarioPro
   const token = useSessionToken();
   const [tab, setTab] = useState<Tab>("hoje");
   const [processando, setProcessando] = useState<string | null>(null);
+  const [itemConfirmar, setItemConfirmar] = useState<ItemPendente | null>(null);
 
   const togglePago = useMutation(api.financeiro.despesas.togglePago);
   const toggleRecebido = useMutation(api.financeiro.receitas.toggleRecebido);
@@ -121,8 +123,16 @@ export function PainelDiario({ familyIdAlvo, readonly = false }: PainelDiarioPro
 
   const totalProximos = itensPendentes?.length ?? 0;
 
-  async function handleConfirmar(item: ItemPendente) {
+  // Abre o dialog perguntando a conta antes de efetivar
+  function handleConfirmar(item: ItemPendente) {
     if (!token || processando) return;
+    setItemConfirmar(item);
+  }
+
+  // Chamado pelo EfetivarDialog após o usuário escolher conta
+  async function executarConfirmacao(contaId: Id<"contas"> | null) {
+    if (!token || !itemConfirmar) return;
+    const item = itemConfirmar;
     setProcessando(item.id);
     try {
       const mesItem = item.dataVencimento.slice(0, 7) || currentMonth();
@@ -131,16 +141,19 @@ export function PainelDiario({ familyIdAlvo, readonly = false }: PainelDiarioPro
           sessionToken: token,
           id: item.id as Id<"despesas">,
           mes: mesItem,
+          contaId: contaId ?? undefined,
         });
       } else {
         await toggleRecebido({
           sessionToken: token,
           id: item.id as Id<"receitas">,
           mes: mesItem,
+          contaId: contaId ?? undefined,
         });
       }
     } finally {
       setProcessando(null);
+      setItemConfirmar(null);
     }
   }
 
@@ -191,6 +204,16 @@ export function PainelDiario({ familyIdAlvo, readonly = false }: PainelDiarioPro
           readonly={readonly}
         />
       )}
+
+      <EfetivarDialog
+        open={!!itemConfirmar}
+        onClose={() => setItemConfirmar(null)}
+        onConfirm={executarConfirmacao}
+        quantidade={1}
+        valorTotal={itemConfirmar?.valor}
+        tipo={itemConfirmar?.tipo ?? "despesa"}
+        contaSugeridaId={itemConfirmar?.contaId as Id<"contas"> | undefined}
+      />
     </section>
   );
 }

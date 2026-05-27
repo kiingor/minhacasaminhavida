@@ -26,6 +26,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ContaForm, getIconeConta, type TipoConta } from "@/components/financeiro/ContaForm";
 import { AtualizarSaldoDialog } from "@/components/financeiro/AtualizarSaldoDialog";
 import { SparklineSaldo } from "@/components/financeiro/SparklineSaldo";
+import { DiagnosticoSaldosDialog, BotaoAbrirDiagnostico } from "@/components/financeiro/DiagnosticoSaldosDialog";
 import { formatBRL } from "@/lib/formatters";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } };
@@ -75,6 +76,7 @@ export default function ContasPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [atualizarSaldo, setAtualizarSaldo] = useState<AtualizarSaldoState | null>(null);
+  const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
 
   // Total especifico de aplicacoes (saldo final por conta tipo=aplicacao)
   const totalAplicacoes =
@@ -133,8 +135,11 @@ export default function ContasPage() {
       <motion.div variants={item} className="grid gap-3 md:grid-cols-3">
         {consolidado ? (
           <div className="rounded-2xl bg-gradient-to-br from-primary to-indigo-600 text-white p-6 shadow-md md:col-span-2">
-            <div className="flex items-center gap-2 text-sm text-white/80">
-              <Sparkles size={14} /> Saldo Consolidado
+            <div className="flex items-center justify-between gap-2 text-sm text-white/80">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} /> Saldo Consolidado
+              </div>
+              <BotaoAbrirDiagnostico onClick={() => setDiagnosticoAberto(true)} />
             </div>
             <div className="font-mono font-extrabold text-3xl md:text-4xl mt-1">
               {formatBRL(consolidado.total)}
@@ -384,6 +389,11 @@ export default function ContasPage() {
           onClose={() => setAtualizarSaldo(null)}
         />
       )}
+
+      <DiagnosticoSaldosDialog
+        open={diagnosticoAberto}
+        onClose={() => setDiagnosticoAberto(false)}
+      />
 
       <ConfirmDialog
         open={!!deleteId}

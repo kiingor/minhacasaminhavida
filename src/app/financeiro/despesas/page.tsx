@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ParcelasView } from "@/components/financeiro/ParcelasView";
+import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
+import { ExcluirLancamentoDialog, type EscopoExclusao } from "@/components/financeiro/ExcluirLancamentoDialog";
 import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
@@ -26,8 +28,19 @@ export default function DespesasPage() {
   const [showForm, setShowForm] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingDespesa, setEditingDespesa] = useState<any>(null);
-  const [deleteId, setDeleteId] = useState<Id<"despesas"> | null>(null);
+  const [itemAExcluir, setItemAExcluir] = useState<{
+    id: Id<"despesas">;
+    tipo: "fixa" | "parcelada" | "avulsa";
+    descricao: string;
+    mesProj: string;
+  } | null>(null);
   const [togglingId, setTogglingId] = useState<Id<"despesas"> | null>(null);
+  const [efetivarPayload, setEfetivarPayload] = useState<{
+    id: Id<"despesas">;
+    mes: string;
+    valor: number;
+    contaSugeridaId?: Id<"contas">;
+  } | null>(null);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<StatusFilter>("todos");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,6 +50,7 @@ export default function DespesasPage() {
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token, tipo: "despesa" } : "skip");
   const togglePago = useMutation(api.financeiro.despesas.togglePago);
   const remove = useMutation(api.financeiro.despesas.remove);
+  const excluirNoMes = useMutation(api.financeiro.despesas.excluirNoMes);
   const seedCategorias = useMutation(api.financeiro.categorias.seedDefaults);
 
   useEffect(() => {
@@ -72,13 +86,42 @@ export default function DespesasPage() {
   const totalPago = despesas?.filter((d) => d.pago).reduce((s, d) => s + d.valor, 0) ?? 0;
   const totalPendente = total - totalPago;
 
-  async function handleToggle(id: Id<"despesas">, mesProj: string) {
+  async function handleToggle(
+    id: Id<"despesas">,
+    mesProj: string,
+    jaEfetivado: boolean,
+    valor: number,
+    contaSugeridaId?: Id<"contas">,
+  ) {
     if (!token || togglingId) return;
+    // Desmarcar (já pago): chama direto, não pergunta conta
+    if (jaEfetivado) {
+      setTogglingId(id);
+      try {
+        await togglePago({ sessionToken: token, id, mes: mesProj });
+      } finally {
+        setTogglingId(null);
+      }
+      return;
+    }
+    // Marcar (não pago): abre dialog
+    setEfetivarPayload({ id, mes: mesProj, valor, contaSugeridaId });
+  }
+
+  async function executarEfetivacao(contaId: Id<"contas"> | null) {
+    if (!token || !efetivarPayload) return;
+    const { id, mes: mesProj } = efetivarPayload;
     setTogglingId(id);
     try {
-      await togglePago({ sessionToken: token, id, mes: mesProj });
+      await togglePago({
+        sessionToken: token,
+        id,
+        mes: mesProj,
+        contaId: contaId ?? undefined,
+      });
     } finally {
       setTogglingId(null);
+      setEfetivarPayload(null);
     }
   }
 
@@ -185,7 +228,7 @@ export default function DespesasPage() {
                 <button
                   role="checkbox"
                   aria-checked={d.pago}
-                  onClick={() => handleToggle(d._id, mesProj)}
+                  onClick={() => handleToggle(d._id, mesProj, d.pago, d.valor, d.contaId as Id<"contas"> | undefined)}
                   disabled={isToggling}
                   className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${
                     d.pago ? "bg-success border-success text-white" : "border-slate-300 hover:border-success"
@@ -232,7 +275,16 @@ export default function DespesasPage() {
                 <button onClick={() => setEditingDespesa(d)} className="p-1.5 rounded text-slate-400 hover:text-primary hover:bg-primary/10" aria-label="Editar">
                   <Pencil size={14} />
                 </button>
-                <button onClick={() => setDeleteId(d._id)} className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger/10" aria-label="Remover">
+                <button
+                  onClick={() => setItemAExcluir({
+                    id: d._id,
+                    tipo: d.tipo,
+                    descricao: d.descricao,
+                    mesProj: d._projectedMes,
+                  })}
+                  className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger/10"
+                  aria-label="Remover"
+                >
                   <Trash2 size={14} />
                 </button>
               </motion.li>
@@ -257,12 +309,31 @@ export default function DespesasPage() {
         />
       )}
 
-      <ConfirmDialog
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={() => { if (token && deleteId) remove({ sessionToken: token, id: deleteId }); }}
-        title="Excluir despesa"
-        description="Tem certeza que deseja excluir esta despesa? Essa ação não pode ser desfeita."
+      <ExcluirLancamentoDialog
+        open={!!itemAExcluir}
+        onClose={() => setItemAExcluir(null)}
+        onConfirm={async (escopo: EscopoExclusao) => {
+          if (!token || !itemAExcluir) return;
+          if (escopo === "mes") {
+            await excluirNoMes({ sessionToken: token, id: itemAExcluir.id, mes: itemAExcluir.mesProj });
+          } else {
+            await remove({ sessionToken: token, id: itemAExcluir.id });
+          }
+        }}
+        tipo="despesa"
+        tipoOriginal={itemAExcluir?.tipo}
+        mesLabel={monthLabelLong(itemAExcluir?.mesProj ?? mes)}
+        descricao={itemAExcluir?.descricao}
+      />
+
+      <EfetivarDialog
+        open={!!efetivarPayload}
+        onClose={() => setEfetivarPayload(null)}
+        onConfirm={executarEfetivacao}
+        quantidade={1}
+        valorTotal={efetivarPayload?.valor}
+        tipo="despesa"
+        contaSugeridaId={efetivarPayload?.contaSugeridaId}
       />
     </div>
   );

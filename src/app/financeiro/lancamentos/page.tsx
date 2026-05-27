@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet,
+  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -22,6 +22,8 @@ import {
   type FiltroStatus,
 } from "@/components/financeiro/FiltrosLancamentos";
 import { ReclassificarDialog } from "@/components/financeiro/ReclassificarDialog";
+import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
+import { ExcluirLancamentoDialog, type EscopoExclusao } from "@/components/financeiro/ExcluirLancamentoDialog";
 import { NovoLancamentoDropdown } from "@/components/financeiro/NovoLancamentoDropdown";
 import { SumarioBarra } from "@/components/financeiro/SumarioBarra";
 import { DespesaForm } from "@/components/financeiro/DespesaForm";
@@ -32,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatBRL, todayISO } from "@/lib/formatters";
-import { currentMonth } from "@/lib/monthUtils";
+import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
 
 const PAGINA_TAMANHO = 50;
 
@@ -82,6 +84,15 @@ interface Grupo {
   totalSaidas: number;
 }
 
+interface GrupoCartao {
+  cartao: string;
+  itens: LancamentoItemData[];
+  total: number;
+  qtd: number;
+  cor?: string;
+  bandeira?: string;
+}
+
 export default function LancamentosPage() {
   const token = useSessionToken();
   const [mes, setMes] = useState(currentMonth());
@@ -105,11 +116,15 @@ export default function LancamentosPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editandoReceita, setEditandoReceita] = useState<any>(null);
   const [reclassificarAberto, setReclassificarAberto] = useState(false);
+  const [efetivarDialogAberto, setEfetivarDialogAberto] = useState(false);
   const [confirmarExclusaoBulkAberto, setConfirmarExclusaoBulkAberto] = useState(false);
   const [confirmarExclusaoUmAberto, setConfirmarExclusaoUmAberto] = useState<LancamentoItemData | null>(null);
 
   const [processando, setProcessando] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackBulk | null>(null);
+
+  // Cartões expandidos (default: todos minimizados)
+  const [cartoesExpandidos, setCartoesExpandidos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setSelecao(new Set());
@@ -130,6 +145,7 @@ export default function LancamentosPage() {
   const lancamentos = useQuery(api.financeiro.lancamentos.listByMonth, token ? { sessionToken: token, mes } : "skip");
   const categorias = useQuery(api.financeiro.categorias.list, token ? { sessionToken: token } : "skip");
   const contas = useQuery(api.financeiro.contas.list, token ? { sessionToken: token } : "skip");
+  const cartoes = useQuery(api.financeiro.cartoes.list, token ? { sessionToken: token } : "skip");
   const pagadores = useQuery(api.financeiro.pagadores.list, token ? { sessionToken: token, incluirInativos: true } : "skip");
   const pessoas = useQuery(api.pessoas.list, token ? { sessionToken: token } : "skip");
 
@@ -139,6 +155,8 @@ export default function LancamentosPage() {
   const removerDespesa = useMutation(api.financeiro.despesas.remove);
   const removerReceita = useMutation(api.financeiro.receitas.remove);
   const removerTransferencia = useMutation(api.financeiro.transferencias.remove);
+  const excluirDespesaNoMes = useMutation(api.financeiro.despesas.excluirNoMes);
+  const excluirReceitaNoMes = useMutation(api.financeiro.receitas.excluirNoMes);
 
   const catMap = useMemo(() => new Map((categorias ?? []).map((c) => [c._id as string, c])), [categorias]);
   const contaMap = useMemo(() => new Map((contas ?? []).map((c) => [c._id as string, c])), [contas]);
@@ -210,10 +228,16 @@ export default function LancamentosPage() {
     return { entradas, saidas, saldo: entradas - saidas };
   }, [filtrados]);
 
-  // Agrupamento por dia (descendente)
+  // Separa despesas de cartão dos outros (cartão vira grupo próprio)
+  const visiveisNaoCartao = useMemo(
+    () => visiveis.filter((l) => !(l.tipo === "despesa" && l.cartao)),
+    [visiveis]
+  );
+
+  // Agrupamento por dia (descendente) — só itens NÃO de cartão
   const grupos = useMemo<Grupo[]>(() => {
     const map = new Map<string, Grupo>();
-    for (const item of visiveis) {
+    for (const item of visiveisNaoCartao) {
       const dia = item.dataRef.slice(0, 10);
       if (!map.has(dia)) map.set(dia, { data: dia, itens: [], totalEntradas: 0, totalSaidas: 0 });
       const g = map.get(dia)!;
@@ -222,7 +246,40 @@ export default function LancamentosPage() {
       else if (item.tipo === "despesa") g.totalSaidas += item.valor;
     }
     return Array.from(map.values()).sort((a, b) => b.data.localeCompare(a.data));
-  }, [visiveis]);
+  }, [visiveisNaoCartao]);
+
+  // Agrupamento de despesas por cartão (1 grupo por cartão usado no mês)
+  const gruposCartao = useMemo<GrupoCartao[]>(() => {
+    const map = new Map<string, GrupoCartao>();
+    for (const item of visiveis) {
+      if (item.tipo !== "despesa" || !item.cartao) continue;
+      const key = item.cartao;
+      if (!map.has(key)) {
+        map.set(key, { cartao: key, itens: [], total: 0, qtd: 0 });
+      }
+      const g = map.get(key)!;
+      g.itens.push(item);
+      g.total += item.valor;
+      g.qtd += 1;
+    }
+    // Decora com cor/bandeira dos cartões cadastrados
+    const cartoesMap = new Map((cartoes ?? []).map((c) => [c.nome, c]));
+    return Array.from(map.values())
+      .map((g) => {
+        const info = cartoesMap.get(g.cartao);
+        return { ...g, cor: info?.cor, bandeira: info?.bandeira };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [visiveis, cartoes]);
+
+  function toggleCartaoExpansao(cartao: string) {
+    setCartoesExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(cartao)) next.delete(cartao);
+      else next.add(cartao);
+      return next;
+    });
+  }
 
   const selecionados = useMemo(() => filtrados.filter((l) => selecao.has(chaveSelecao(l))), [filtrados, selecao]);
   const tiposSelecionados = useMemo(() => {
@@ -281,12 +338,21 @@ export default function LancamentosPage() {
     }
   }
 
-  async function confirmarExclusaoIndividual(item: LancamentoItemData) {
+  async function confirmarExclusaoIndividual(item: LancamentoItemData, escopo: EscopoExclusao = "todos") {
     if (!token) return;
     try {
-      if (item.tipo === "despesa") await removerDespesa({ sessionToken: token, id: item.id as Id<"despesas"> });
-      else if (item.tipo === "receita") await removerReceita({ sessionToken: token, id: item.id as Id<"receitas"> });
-      else await removerTransferencia({ sessionToken: token, id: item.id as Id<"transferencias"> });
+      const mesProj = item.tipo === "transferencia" ? mes : item._projectedMes;
+      if (escopo === "mes" && (item.tipo === "despesa" || item.tipo === "receita")) {
+        if (item.tipo === "despesa") {
+          await excluirDespesaNoMes({ sessionToken: token, id: item.id as Id<"despesas">, mes: mesProj });
+        } else {
+          await excluirReceitaNoMes({ sessionToken: token, id: item.id as Id<"receitas">, mes: mesProj });
+        }
+      } else {
+        if (item.tipo === "despesa") await removerDespesa({ sessionToken: token, id: item.id as Id<"despesas"> });
+        else if (item.tipo === "receita") await removerReceita({ sessionToken: token, id: item.id as Id<"receitas"> });
+        else await removerTransferencia({ sessionToken: token, id: item.id as Id<"transferencias"> });
+      }
       setSelecao((s) => {
         const novo = new Set(s);
         novo.delete(chaveSelecao(item));
@@ -314,18 +380,32 @@ export default function LancamentosPage() {
     }
   }
 
-  async function executarMarcarEfetivado() {
+  function abrirEfetivarDialog() {
+    setEfetivarDialogAberto(true);
+  }
+
+  async function confirmarEfetivacaoBulk(contaId: Id<"contas"> | null) {
     if (!token) return;
     setProcessando(true);
     try {
       const items = selecionados
         .filter((l) => l.tipo !== "transferencia")
+        .filter((l) => {
+          // Não tenta efetivar quem já está efetivado
+          if (l.tipo === "despesa") return !l.pago;
+          if (l.tipo === "receita") return !l.recebido;
+          return false;
+        })
         .map((l) => {
           const mesProj = l.tipo === "despesa" || l.tipo === "receita" ? l._projectedMes : mes;
           if (l.tipo === "despesa") return { tipo: "despesa" as const, id: l.id as Id<"despesas">, mes: mesProj };
           return { tipo: "receita" as const, id: l.id as Id<"receitas">, mes: mesProj };
         });
-      const r = await bulkMarcarEfetivado({ sessionToken: token, items });
+      const r = await bulkMarcarEfetivado({
+        sessionToken: token,
+        items,
+        contaId: contaId ?? undefined,
+      });
       mostrarFeedback(r, "efetivado", "efetivados");
       limparSelecao();
     } catch (err) {
@@ -458,6 +538,97 @@ export default function LancamentosPage() {
         </Card>
       ) : (
         <>
+          {/* Faturas de cartão (agrupado, minimizado por default) */}
+          {gruposCartao.length > 0 && (
+            <div className="space-y-2 mb-6">
+              <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400 font-semibold px-1">
+                Faturas de cartão
+              </h2>
+              {gruposCartao.map((gc) => {
+                const expandido = cartoesExpandidos.has(gc.cartao);
+                return (
+                  <Card key={gc.cartao} padding="none" className="overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleCartaoExpansao(gc.cartao)}
+                      className="w-full p-3 flex items-center gap-3 hover:bg-cream-50/60 transition-colors"
+                      aria-expanded={expandido}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{
+                          background: `${gc.cor ?? "#6366F1"}20`,
+                          color: gc.cor ?? "#6366F1",
+                        }}
+                      >
+                        <CreditCard size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-ink-900 truncate">{gc.cartao}</span>
+                          {gc.bandeira && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cream-100 text-ink-500 uppercase tracking-wide">
+                              {gc.bandeira}
+                            </span>
+                          )}
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-cream-100 text-ink-500">
+                            {gc.qtd} {gc.qtd === 1 ? "lançamento" : "lançamentos"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-ink-400 mt-0.5">Fatura do mês</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold text-ink-900 tabular-nums">
+                          {formatBRL(gc.total)}
+                        </div>
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`text-ink-400 transition-transform shrink-0 ${expandido ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {expandido && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden border-t border-cream-100"
+                        >
+                          <ul className="divide-y divide-cream-100">
+                            {gc.itens.map((item, idx) => {
+                              // Só despesas estão em gc.itens (filtro garante)
+                              if (item.tipo !== "despesa") return null;
+                              const cat = catMap.get(item.categoriaId as string);
+                              const pessoa = item.pessoaId ? pessoaMap.get(item.pessoaId as string) : undefined;
+                              return (
+                                <LancamentoItem
+                                  key={`cartao-${item.id}-${item.parcelaAtual ?? ""}`}
+                                  item={item}
+                                  selecionado={selecao.has(chaveSelecao(item))}
+                                  onToggleSelecao={() => toggleSelecao(item)}
+                                  onEditar={() => editar(item)}
+                                  onExcluir={() => setConfirmarExclusaoUmAberto(item)}
+                                  categoria={cat ? { nome: cat.nome, cor: cat.cor, icone: cat.icone } : undefined}
+                                  pessoa={pessoa ? {
+                                    nome: pessoa.nome, apelido: pessoa.apelido,
+                                    fotoUrl: pessoa.fotoUrl, corTema: pessoa.corTema,
+                                  } : undefined}
+                                  index={idx}
+                                />
+                              );
+                            })}
+                          </ul>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
           <div className="space-y-6">
             {grupos.map((g) => {
               const saldoDia = g.totalEntradas - g.totalSaidas;
@@ -531,7 +702,7 @@ export default function LancamentosPage() {
         podeReclassificar={podeReclassificar}
         podeMarcarEfetivado={podeMarcarEfetivado}
         onReclassificar={() => setReclassificarAberto(true)}
-        onMarcarEfetivado={executarMarcarEfetivado}
+        onMarcarEfetivado={abrirEfetivarDialog}
         onExcluir={() => setConfirmarExclusaoBulkAberto(true)}
         onCancelar={limparSelecao}
         processando={processando}
@@ -563,6 +734,38 @@ export default function LancamentosPage() {
         />
       )}
 
+      {(() => {
+        // Calcula derivados pro EfetivarDialog (só usados quando dialog está aberto)
+        const aEfetivar = selecionados.filter((l) => {
+          if (l.tipo === "transferencia") return false;
+          if (l.tipo === "despesa") return !l.pago;
+          if (l.tipo === "receita") return !l.recebido;
+          return false;
+        });
+        const valorTotal = aEfetivar.reduce((s, l) => s + l.valor, 0);
+        const contaIds = new Set(
+          aEfetivar.map((l) => (l.tipo !== "transferencia" ? l.contaId : undefined)).filter(Boolean) as string[]
+        );
+        const contaSugeridaId = contaIds.size === 1 ? (Array.from(contaIds)[0] as Id<"contas">) : undefined;
+        const tipos = new Set(aEfetivar.map((l) => l.tipo));
+        const tipoEfetivar: "despesa" | "receita" | "misto" =
+          tipos.size === 1
+            ? tipos.has("despesa") ? "despesa" : "receita"
+            : "misto";
+
+        return (
+          <EfetivarDialog
+            open={efetivarDialogAberto}
+            onClose={() => setEfetivarDialogAberto(false)}
+            onConfirm={confirmarEfetivacaoBulk}
+            quantidade={aEfetivar.length}
+            valorTotal={valorTotal}
+            tipo={tipoEfetivar}
+            contaSugeridaId={contaSugeridaId}
+          />
+        );
+      })()}
+
       <ConfirmDialog
         open={confirmarExclusaoBulkAberto}
         onClose={() => setConfirmarExclusaoBulkAberto(false)}
@@ -577,15 +780,26 @@ export default function LancamentosPage() {
         loading={processando}
       />
 
-      <ConfirmDialog
+      <ExcluirLancamentoDialog
         open={!!confirmarExclusaoUmAberto}
         onClose={() => setConfirmarExclusaoUmAberto(null)}
-        onConfirm={() => {
-          if (confirmarExclusaoUmAberto) confirmarExclusaoIndividual(confirmarExclusaoUmAberto);
-          setConfirmarExclusaoUmAberto(null);
+        onConfirm={async (escopo) => {
+          if (confirmarExclusaoUmAberto) {
+            await confirmarExclusaoIndividual(confirmarExclusaoUmAberto, escopo);
+          }
         }}
-        title="Excluir lançamento"
-        description="Tem certeza que deseja excluir este lançamento? Essa ação não pode ser desfeita."
+        tipo={confirmarExclusaoUmAberto?.tipo ?? "despesa"}
+        tipoOriginal={
+          confirmarExclusaoUmAberto && confirmarExclusaoUmAberto.tipo !== "transferencia"
+            ? confirmarExclusaoUmAberto.tipoOriginal
+            : undefined
+        }
+        mesLabel={monthLabelLong(
+          confirmarExclusaoUmAberto && confirmarExclusaoUmAberto.tipo !== "transferencia"
+            ? confirmarExclusaoUmAberto._projectedMes
+            : mes
+        )}
+        descricao={confirmarExclusaoUmAberto?.descricao}
       />
     </div>
   );

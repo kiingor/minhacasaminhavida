@@ -143,48 +143,51 @@ async function calcularSaldoConta(
     throw new Error("Conta não encontrada");
   }
 
-  // Receitas: somente as efetivamente recebidas contam para o saldo da conta.
-  // O efetivo recebimento vive na tabela recebimentosReceitas (pode haver vários por receita
-  // recorrente/parcelada). Por isso iteramos recebimentosReceitas e não r.recebido.
-  const receitas = await ctx.db
-    .query("receitas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  // RECEITAS: iteramos TODOS os recebimentos da família e atribuímos
+  // à conta efetiva = recebimento.contaId ?? receita.contaId (fallback legacy).
+  // Assim a escolha de conta feita no momento do "Efetivar" sobrescreve a do cadastro.
+  const todosRecebimentos = await ctx.db
+    .query("recebimentosReceitas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const receitasDaConta = receitas.filter((r) => r.contaId === contaId);
 
   let totalReceitas = 0;
-  for (const r of receitasDaConta) {
-    const recs = await ctx.db
-      .query("recebimentosReceitas")
-      .withIndex("by_receita_mes", (q) => q.eq("receitaId", r._id))
-      .collect();
-    for (const rec of recs) {
-      if (rec.dataRecebimento) {
-        totalReceitas += rec.valorRecebido ?? r.valor;
-      }
+  for (const rec of todosRecebimentos) {
+    if (!rec.dataRecebimento) continue;
+    const contaEfetiva = rec.contaId;
+    let contaResolvida: Id<"contas"> | undefined = contaEfetiva;
+    let receita = null as null | { valor: number; contaId?: Id<"contas"> };
+    if (!contaResolvida) {
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      receita = { valor: r.valor, contaId: r.contaId };
+      contaResolvida = r.contaId;
     }
+    if (contaResolvida !== contaId) continue;
+    // Precisa do valor da receita pra fallback de valorRecebido
+    if (!receita) {
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      receita = { valor: r.valor, contaId: r.contaId };
+    }
+    totalReceitas += rec.valorRecebido ?? receita.valor;
   }
 
-  // Despesas: somente pagas (pagamentosDespesas) + despesa.contaId == contaId + EXCLUIR cartao preenchido
-  const despesas = await ctx.db
-    .query("despesas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  // DESPESAS: idem — pagamento.contaId ?? despesa.contaId. Exclui despesas com cartao preenchido.
+  const todosPagamentos = await ctx.db
+    .query("pagamentosDespesas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const despesasDaConta = despesas.filter(
-    (d) => d.contaId === contaId && !d.cartao
-  );
 
   let totalDespesas = 0;
-  for (const d of despesasDaConta) {
-    const pags = await ctx.db
-      .query("pagamentosDespesas")
-      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", d._id))
-      .collect();
-    for (const p of pags) {
-      if (p.dataPagamento) {
-        totalDespesas += p.valorPago ?? d.valor;
-      }
-    }
+  for (const p of todosPagamentos) {
+    if (!p.dataPagamento) continue;
+    const d = await ctx.db.get(p.despesaId);
+    if (!d) continue;
+    if (d.cartao) continue; // cartão não impacta saldo de conta
+    const contaResolvida = p.contaId ?? d.contaId;
+    if (contaResolvida !== contaId) continue;
+    totalDespesas += p.valorPago ?? d.valor;
   }
 
   // Transferencias
@@ -360,5 +363,156 @@ export const historicoSaldoAplicacao = query({
       .sort((a, b) => a.data.localeCompare(b.data));
 
     return filtrados.map((h) => ({ data: h.data, valor: h.valor }));
+  },
+});
+
+/**
+ * Diagnóstico completo de saldos.
+ * Retorna breakdown por conta + lançamentos efetivados que NÃO afetam saldo
+ * (sem contaId no pagamento/recebimento NEM na despesa/receita original).
+ *
+ * Útil pra entender por que "saldo do período" ≠ "saldo efetivo".
+ */
+export const diagnostico = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const familyId = user.familyId;
+
+    // Carrega tudo de uma vez
+    const [contas, todosPagamentos, todosRecebimentos, todasDespesas, todasReceitas] =
+      await Promise.all([
+        ctx.db.query("contas").withIndex("by_family", (q) => q.eq("familyId", familyId)).collect(),
+        ctx.db.query("pagamentosDespesas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId)).collect(),
+        ctx.db.query("recebimentosReceitas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId)).collect(),
+        ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", familyId)).collect(),
+        ctx.db.query("receitas").withIndex("by_family_mes", (q) => q.eq("familyId", familyId)).collect(),
+      ]);
+
+    const despesaMap = new Map(todasDespesas.map((d) => [d._id as string, d]));
+    const receitaMap = new Map(todasReceitas.map((r) => [r._id as string, r]));
+
+    // Por conta: breakdown
+    const breakdownPorConta = await Promise.all(
+      contas.map(async (c) => {
+        const detalhe = await calcularSaldoConta(ctx, c._id, familyId);
+        return {
+          _id: c._id,
+          nome: c.nome,
+          tipo: c.tipo,
+          banco: c.banco,
+          cor: c.cor,
+          icone: c.icone,
+          ativa: c.ativa,
+          saldoInicial: detalhe.saldoInicial,
+          totalReceitas: detalhe.totalReceitas,
+          totalDespesas: detalhe.totalDespesas,
+          totalTransferenciasEntradas: detalhe.totalTransferenciasEntradas,
+          totalTransferenciasSaidas: detalhe.totalTransferenciasSaidas,
+          saldoFinal: detalhe.saldoFinal,
+          ehManual: detalhe.ehManual,
+          saldoManual: detalhe.saldoManual,
+        };
+      })
+    );
+
+    // Pagamentos sem conta resolvida (nem no pagamento, nem na despesa)
+    const pagamentosSemConta: Array<{
+      _id: string;
+      despesaId: string;
+      descricao: string;
+      valor: number;
+      dataPagamento: string;
+      mes: string;
+      cartao?: string;
+    }> = [];
+    let valorSemContaDespesas = 0;
+    for (const p of todosPagamentos) {
+      if (!p.dataPagamento) continue;
+      const d = despesaMap.get(p.despesaId as string);
+      if (!d) continue;
+      if (d.cartao) continue; // cartão é tratado separadamente
+      const contaResolvida = p.contaId ?? d.contaId;
+      if (contaResolvida) continue; // tem conta — já entra no saldo
+      const valor = p.valorPago ?? d.valor;
+      pagamentosSemConta.push({
+        _id: p._id as string,
+        despesaId: p.despesaId as string,
+        descricao: d.descricao,
+        valor,
+        dataPagamento: p.dataPagamento,
+        mes: p.mes,
+        cartao: d.cartao,
+      });
+      valorSemContaDespesas += valor;
+    }
+
+    // Recebimentos sem conta resolvida
+    const recebimentosSemConta: Array<{
+      _id: string;
+      receitaId: string;
+      descricao: string;
+      valor: number;
+      dataRecebimento: string;
+      mes: string;
+    }> = [];
+    let valorSemContaReceitas = 0;
+    for (const rec of todosRecebimentos) {
+      if (!rec.dataRecebimento) continue;
+      const r = receitaMap.get(rec.receitaId as string);
+      if (!r) continue;
+      const contaResolvida = rec.contaId ?? r.contaId;
+      if (contaResolvida) continue;
+      const valor = rec.valorRecebido ?? r.valor;
+      recebimentosSemConta.push({
+        _id: rec._id as string,
+        receitaId: rec.receitaId as string,
+        descricao: r.descricao,
+        valor,
+        dataRecebimento: rec.dataRecebimento,
+        mes: rec.mes,
+      });
+      valorSemContaReceitas += valor;
+    }
+
+    // Despesas de cartão efetivadas (não impactam saldo de conta — entram em fatura)
+    let valorPagoEmCartao = 0;
+    let qtdPagoEmCartao = 0;
+    for (const p of todosPagamentos) {
+      if (!p.dataPagamento) continue;
+      const d = despesaMap.get(p.despesaId as string);
+      if (!d || !d.cartao) continue;
+      valorPagoEmCartao += p.valorPago ?? d.valor;
+      qtdPagoEmCartao += 1;
+    }
+
+    // Total consolidado
+    const totalSaldoFinal = breakdownPorConta
+      .filter((c) => c.ativa)
+      .reduce((s, c) => s + c.saldoFinal, 0);
+    const totalSaldoInicial = breakdownPorConta
+      .filter((c) => c.ativa)
+      .reduce((s, c) => s + c.saldoInicial, 0);
+
+    return {
+      contas: breakdownPorConta.sort((a, b) => {
+        if (a.ativa !== b.ativa) return a.ativa ? -1 : 1;
+        return a.nome.localeCompare(b.nome, "pt-BR");
+      }),
+      pagamentosSemConta: pagamentosSemConta.sort((a, b) => b.dataPagamento.localeCompare(a.dataPagamento)),
+      recebimentosSemConta: recebimentosSemConta.sort((a, b) => b.dataRecebimento.localeCompare(a.dataRecebimento)),
+      resumo: {
+        totalSaldoFinal,
+        totalSaldoInicial,
+        qtdContasAtivas: breakdownPorConta.filter((c) => c.ativa).length,
+        valorSemContaDespesas,
+        qtdSemContaDespesas: pagamentosSemConta.length,
+        valorSemContaReceitas,
+        qtdSemContaReceitas: recebimentosSemConta.length,
+        impactoSemContaLiquido: valorSemContaReceitas - valorSemContaDespesas,
+        valorPagoEmCartao,
+        qtdPagoEmCartao,
+      },
+    };
   },
 });

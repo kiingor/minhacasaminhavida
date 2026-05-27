@@ -22,6 +22,7 @@ function aplicarOverrideDespesa<
       valor?: number;
       descricao?: string;
       dataVencimento?: string;
+      excluida?: boolean;
     }>;
   }
 >(d: T, mes: string): T {
@@ -33,6 +34,14 @@ function aplicarOverrideDespesa<
     descricao: ov.descricao ?? d.descricao,
     dataVencimento: ov.dataVencimento ?? d.dataVencimento,
   };
+}
+
+// Checa se a despesa tem override marcado como excluída para o mês.
+function despesaExcluidaNoMes(
+  d: { overrides?: Array<{ mes: string; excluida?: boolean }> },
+  mes: string
+): boolean {
+  return !!(d.overrides ?? []).find((o) => o.mes === mes && o.excluida === true);
 }
 
 // Determina se uma despesa do tipo `fixa` deve aparecer no mes alvo,
@@ -68,6 +77,8 @@ export const listByMonth = query({
 
     const result: Array<Omit<typeof all[number], "pago" | "dataPagamento"> & { _projectedMes: string; _parcela?: number; pago: boolean; dataPagamento?: string }> = [];
     for (const d of all) {
+      // Pula se excluída especificamente neste mês
+      if (despesaExcluidaNoMes(d, mes)) continue;
       const origMes = d.dataVencimento.slice(0, 7);
       const pagamento = pagoMap.get(d._id as string);
       const baseOverride = { pago: !!pagamento, dataPagamento: pagamento?.dataPagamento };
@@ -170,11 +181,23 @@ export const create = mutation({
 });
 
 export const togglePago = mutation({
-  args: { sessionToken: v.string(), id: v.id("despesas"), mes: v.string() },
-  handler: async (ctx, { sessionToken, id, mes }) => {
+  args: {
+    sessionToken: v.string(),
+    id: v.id("despesas"),
+    mes: v.string(),
+    // Conta da qual saiu o dinheiro NESTE pagamento.
+    // Se undefined no novo pagamento, fica sem conta (cai no fallback despesa.contaId).
+    contaId: v.optional(v.id("contas")),
+  },
+  handler: async (ctx, { sessionToken, id, mes, contaId }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const d = await ctx.db.get(id);
     if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
+
+    if (contaId) {
+      const conta = await ctx.db.get(contaId);
+      if (!conta || conta.familyId !== user.familyId) throw new Error("Conta inválida");
+    }
 
     const existente = await ctx.db
       .query("pagamentosDespesas")
@@ -188,6 +211,7 @@ export const togglePago = mutation({
         despesaId: id,
         mes,
         dataPagamento: new Date().toISOString().slice(0, 10),
+        contaId,
         familyId: user.familyId,
         criadoPor: user._id,
         criadoEm: new Date().toISOString(),
@@ -300,5 +324,40 @@ export const removerOverride = mutation({
     if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
     const atuais = d.overrides ?? [];
     await ctx.db.patch(id, { overrides: atuais.filter((o) => o.mes !== mes) });
+  },
+});
+
+// Exclui uma despesa recorrente/parcelada APENAS no mês informado.
+// Cria/atualiza um override { mes, excluida: true } sem deletar a despesa do banco.
+// Também remove qualquer pagamento associado a esse mês.
+export const excluirNoMes = mutation({
+  args: {
+    sessionToken: v.string(),
+    id: v.id("despesas"),
+    mes: v.string(), // YYYY-MM
+  },
+  handler: async (ctx, { sessionToken, id, mes }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const d = await ctx.db.get(id);
+    if (!d || d.familyId !== user.familyId) throw new Error("Não encontrada");
+    if (!/^\d{4}-\d{2}$/.test(mes)) throw new Error("Mês inválido (YYYY-MM)");
+    if (d.tipo === "avulsa") {
+      // Avulsa só existe em 1 mês — exclui de vez
+      await ctx.db.delete(id);
+      return;
+    }
+
+    const atuais = d.overrides ?? [];
+    const semEsteMes = atuais.filter((o) => o.mes !== mes);
+    const overrideAtual = atuais.find((o) => o.mes === mes);
+    const novo = { ...(overrideAtual ?? { mes }), mes, excluida: true };
+    await ctx.db.patch(id, { overrides: [...semEsteMes, novo] });
+
+    // Remove pagamento desse mês, se existir
+    const pag = await ctx.db
+      .query("pagamentosDespesas")
+      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", id).eq("mes", mes))
+      .unique();
+    if (pag) await ctx.db.delete(pag._id);
   },
 });

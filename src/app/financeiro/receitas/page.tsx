@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ParcelasView } from "@/components/financeiro/ParcelasView";
+import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
+import { ExcluirLancamentoDialog, type EscopoExclusao } from "@/components/financeiro/ExcluirLancamentoDialog";
 import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
@@ -25,8 +27,19 @@ export default function ReceitasPage() {
   const [showForm, setShowForm] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingReceita, setEditingReceita] = useState<any>(null);
-  const [deleteId, setDeleteId] = useState<Id<"receitas"> | null>(null);
+  const [itemAExcluir, setItemAExcluir] = useState<{
+    id: Id<"receitas">;
+    tipo: "fixa" | "parcelada" | "avulsa";
+    descricao: string;
+    mesProj: string;
+  } | null>(null);
   const [togglingId, setTogglingId] = useState<Id<"receitas"> | null>(null);
+  const [efetivarPayload, setEfetivarPayload] = useState<{
+    id: Id<"receitas">;
+    mes: string;
+    valor: number;
+    contaSugeridaId?: Id<"contas">;
+  } | null>(null);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<StatusFilter>("todos");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,6 +51,7 @@ export default function ReceitasPage() {
   const pagadores = useQuery(api.financeiro.pagadores.list, token ? { sessionToken: token, incluirInativos: true } : "skip");
   const toggleRecebido = useMutation(api.financeiro.receitas.toggleRecebido);
   const remove = useMutation(api.financeiro.receitas.remove);
+  const excluirNoMes = useMutation(api.financeiro.receitas.excluirNoMes);
   const seedCategorias = useMutation(api.financeiro.categorias.seedDefaults);
 
   useEffect(() => {
@@ -76,13 +90,40 @@ export default function ReceitasPage() {
   const totalRecebido = receitas?.filter((r) => r.recebido).reduce((s, r) => s + r.valor, 0) ?? 0;
   const totalPendente = total - totalRecebido;
 
-  async function handleToggle(id: Id<"receitas">, mesProj: string) {
+  async function handleToggle(
+    id: Id<"receitas">,
+    mesProj: string,
+    jaEfetivada: boolean,
+    valor: number,
+    contaSugeridaId?: Id<"contas">,
+  ) {
     if (!token || togglingId) return;
+    if (jaEfetivada) {
+      setTogglingId(id);
+      try {
+        await toggleRecebido({ sessionToken: token, id, mes: mesProj });
+      } finally {
+        setTogglingId(null);
+      }
+      return;
+    }
+    setEfetivarPayload({ id, mes: mesProj, valor, contaSugeridaId });
+  }
+
+  async function executarEfetivacao(contaId: Id<"contas"> | null) {
+    if (!token || !efetivarPayload) return;
+    const { id, mes: mesProj } = efetivarPayload;
     setTogglingId(id);
     try {
-      await toggleRecebido({ sessionToken: token, id, mes: mesProj });
+      await toggleRecebido({
+        sessionToken: token,
+        id,
+        mes: mesProj,
+        contaId: contaId ?? undefined,
+      });
     } finally {
       setTogglingId(null);
+      setEfetivarPayload(null);
     }
   }
 
@@ -189,7 +230,7 @@ export default function ReceitasPage() {
                 <button
                   role="checkbox"
                   aria-checked={r.recebido}
-                  onClick={() => handleToggle(r._id, mesProj)}
+                  onClick={() => handleToggle(r._id, mesProj, r.recebido, r.valor, r.contaId as Id<"contas"> | undefined)}
                   disabled={isToggling}
                   className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${
                     r.recebido ? "bg-success border-success text-white" : "border-slate-300 hover:border-success"
@@ -236,7 +277,16 @@ export default function ReceitasPage() {
                 <button onClick={() => setEditingReceita(r)} className="p-1.5 rounded text-slate-400 hover:text-primary hover:bg-primary/10" aria-label="Editar">
                   <Pencil size={14} />
                 </button>
-                <button onClick={() => setDeleteId(r._id)} className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger/10" aria-label="Remover">
+                <button
+                  onClick={() => setItemAExcluir({
+                    id: r._id,
+                    tipo: r.tipo,
+                    descricao: r.descricao,
+                    mesProj: r._projectedMes,
+                  })}
+                  className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger/10"
+                  aria-label="Remover"
+                >
                   <Trash2 size={14} />
                 </button>
               </motion.li>
@@ -261,12 +311,31 @@ export default function ReceitasPage() {
         />
       )}
 
-      <ConfirmDialog
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={() => { if (token && deleteId) remove({ sessionToken: token, id: deleteId }); }}
-        title="Excluir receita"
-        description="Tem certeza que deseja excluir esta receita? Essa ação não pode ser desfeita."
+      <ExcluirLancamentoDialog
+        open={!!itemAExcluir}
+        onClose={() => setItemAExcluir(null)}
+        onConfirm={async (escopo: EscopoExclusao) => {
+          if (!token || !itemAExcluir) return;
+          if (escopo === "mes") {
+            await excluirNoMes({ sessionToken: token, id: itemAExcluir.id, mes: itemAExcluir.mesProj });
+          } else {
+            await remove({ sessionToken: token, id: itemAExcluir.id });
+          }
+        }}
+        tipo="receita"
+        tipoOriginal={itemAExcluir?.tipo}
+        mesLabel={monthLabelLong(itemAExcluir?.mesProj ?? mes)}
+        descricao={itemAExcluir?.descricao}
+      />
+
+      <EfetivarDialog
+        open={!!efetivarPayload}
+        onClose={() => setEfetivarPayload(null)}
+        onConfirm={executarEfetivacao}
+        quantidade={1}
+        valorTotal={efetivarPayload?.valor}
+        tipo="receita"
+        contaSugeridaId={efetivarPayload?.contaSugeridaId}
       />
     </div>
   );

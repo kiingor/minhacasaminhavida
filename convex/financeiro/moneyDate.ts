@@ -35,6 +35,9 @@ function todayISO(): string {
 // ---------------- Helpers de despesa/receita ----------------
 
 function isDespesaInMes(d: Doc<"despesas">, mes: string): boolean {
+  // Excluída especificamente neste mês via override
+  const ov = (d.overrides ?? []).find((o) => o.mes === mes);
+  if (ov?.excluida) return false;
   const origMes = d.dataVencimento.slice(0, 7);
   if (d.tipo === "avulsa") return origMes === mes;
   if (d.tipo === "fixa") {
@@ -57,6 +60,9 @@ function isDespesaInMes(d: Doc<"despesas">, mes: string): boolean {
 }
 
 function isReceitaInMes(r: Doc<"receitas">, mes: string): boolean {
+  // Excluída especificamente neste mês via override
+  const ov = (r.overrides ?? []).find((o) => o.mes === mes);
+  if (ov?.excluida) return false;
   const origMes = r.dataPrevisao.slice(0, 7);
   if (r.tipo === "avulsa") return origMes === mes;
   if (r.tipo === "fixa") {

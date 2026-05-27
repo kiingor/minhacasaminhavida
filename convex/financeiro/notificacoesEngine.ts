@@ -38,6 +38,9 @@ function monthDiff(from: string, to: string): number {
 }
 
 function isDespesaInMes(d: Doc<"despesas">, mes: string): boolean {
+  // Excluída especificamente neste mês via override
+  const ov = (d.overrides ?? []).find((o) => o.mes === mes);
+  if (ov?.excluida) return false;
   const origMes = d.dataVencimento.slice(0, 7);
   if (d.tipo === "avulsa") return origMes === mes;
   if (d.tipo === "fixa") {

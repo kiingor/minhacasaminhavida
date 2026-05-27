@@ -16,6 +16,9 @@ function shiftMonth(mes: string, delta: number): string {
 }
 
 function isDespesaInMes(d: any, mes: string): boolean {
+  // Excluída especificamente neste mês via override
+  const ov = (d.overrides ?? []).find((o: any) => o.mes === mes);
+  if (ov?.excluida) return false;
   const origMes = d.dataVencimento.slice(0, 7);
   if (d.tipo === "avulsa") return origMes === mes;
   if (d.tipo === "fixa") {
@@ -39,6 +42,9 @@ function isDespesaInMes(d: any, mes: string): boolean {
 }
 
 function isReceitaInMes(r: any, mes: string): boolean {
+  // Excluída especificamente neste mês via override
+  const ov = (r.overrides ?? []).find((o: any) => o.mes === mes);
+  if (ov?.excluida) return false;
   const origMes = r.dataPrevisao.slice(0, 7);
   if (r.tipo === "avulsa") return origMes === mes;
   if (r.tipo === "fixa") {

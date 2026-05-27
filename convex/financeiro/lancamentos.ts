@@ -130,6 +130,8 @@ export const listByMonth = query({
       const dataPagamento = pagamento?.dataPagamento;
 
       const ov = (d.overrides ?? []).find((o) => o.mes === mes);
+      // Despesa excluída especificamente neste mês → pula projeção
+      if (ov?.excluida) continue;
       const valorEf = ov?.valor ?? d.valor;
       const descEf = ov?.descricao ?? d.descricao;
       const dataBaseEf = ov?.dataVencimento ?? d.dataVencimento;
@@ -185,6 +187,8 @@ export const listByMonth = query({
       const dataRecebimento = rec?.dataRecebimento;
 
       const ov = (r.overrides ?? []).find((o) => o.mes === mes);
+      // Receita excluída especificamente neste mês → pula projeção
+      if (ov?.excluida) continue;
       const valorEf = ov?.valor ?? r.valor;
       const descEf = ov?.descricao ?? r.descricao;
       const dataBaseEf = ov?.dataPrevisao ?? r.dataPrevisao;

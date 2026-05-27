@@ -1366,13 +1366,15 @@ export const indicadoresSaude = query({
 
     let diasReservaValor: number;
     let diasReservaStatus: StatusIndicador;
-    if (despesaDiaria <= 0) {
-      // Sem despesas historicas: status verde (capped 999 pra UI nao explodir).
-      diasReservaValor = 999;
-      diasReservaStatus = "verde";
-    } else if (saldoTotal <= 0) {
+    if (saldoTotal <= 0) {
+      // Sem saldo em conta: zero dias, vermelho. Independe de ter ou não despesa
+      // histórica — sem caixa não tem cobertura.
       diasReservaValor = 0;
       diasReservaStatus = "vermelho";
+    } else if (despesaDiaria <= 0) {
+      // Tem saldo MAS sem despesas históricas: cobertura "infinita" (capped 999).
+      diasReservaValor = 999;
+      diasReservaStatus = "verde";
     } else {
       diasReservaValor = Math.round(saldoTotal / despesaDiaria);
       if (diasReservaValor >= 180) diasReservaStatus = "verde";

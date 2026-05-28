@@ -19,6 +19,7 @@ import type * as agente_transcricao from "../agente/transcricao.js";
 import type * as auth from "../auth.js";
 import type * as consultor from "../consultor.js";
 import type * as financeiro_analisarFatura from "../financeiro/analisarFatura.js";
+import type * as financeiro_auditLog from "../financeiro/auditLog.js";
 import type * as financeiro_cartoes from "../financeiro/cartoes.js";
 import type * as financeiro_categorias from "../financeiro/categorias.js";
 import type * as financeiro_contas from "../financeiro/contas.js";
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   consultor: typeof consultor;
   "financeiro/analisarFatura": typeof financeiro_analisarFatura;
+  "financeiro/auditLog": typeof financeiro_auditLog;
   "financeiro/cartoes": typeof financeiro_cartoes;
   "financeiro/categorias": typeof financeiro_categorias;
   "financeiro/contas": typeof financeiro_contas;

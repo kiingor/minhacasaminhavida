@@ -18,7 +18,8 @@ import { OrcamentoLimiteEditor } from "@/components/financeiro/OrcamentoLimiteEd
 import { CategoriaSelect } from "@/components/financeiro/CategoriaSelect";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
 import { formatBRL, parseBRL } from "@/lib/formatters";
-import { currentMonth, shiftMonth, monthLabelLong } from "@/lib/monthUtils";
+import { shiftMonth, monthLabelLong } from "@/lib/monthUtils";
+import { usePersistedMes } from "@/lib/usePersistedMes";
 
 type Status = "ok" | "atencao" | "estourada" | "sem_limite";
 
@@ -38,7 +39,7 @@ const STATUS_BADGE: Record<Status, string> = {
 
 export default function OrcamentoPage() {
   const token = useSessionToken();
-  const [mes, setMes] = useState(currentMonth());
+  const [mes, setMes] = usePersistedMes();
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [showAdicionar, setShowAdicionar] = useState(false);
   const [confirmCopiar, setConfirmCopiar] = useState(false);

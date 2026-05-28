@@ -20,7 +20,8 @@ import { ComposicaoPatrimonioChart } from "@/components/financeiro/ComposicaoPat
 import { CategoryPieChart } from "@/components/financeiro/CategoryPieChart";
 import { HistoryChart } from "@/components/financeiro/HistoryChart";
 import { TopPagadoresChart } from "@/components/financeiro/TopPagadoresChart";
-import { currentMonth, monthLabel } from "@/lib/monthUtils";
+import { monthLabel } from "@/lib/monthUtils";
+import { usePersistedMes } from "@/lib/usePersistedMes";
 import { formatBRL } from "@/lib/formatters";
 
 type TabType = "pessoas" | "categorias" | "evolucao" | "receitas" | "patrimonio" | "composicao";
@@ -56,7 +57,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
 export default function RelatoriosPage() {
   const token = useSessionToken();
   const searchParams = useSearchParams();
-  const [mes, setMes] = useState(currentMonth());
+  const [mes, setMes] = usePersistedMes();
   const [tab, setTab] = useState<TabType>("pessoas");
   const [receitaSubMode, setReceitaSubMode] = useState<ReceitaSubMode>("pagador");
   const [catExpanded, setCatExpanded] = useState<Record<string, boolean>>({});

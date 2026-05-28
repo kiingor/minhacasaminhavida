@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -35,7 +36,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatBRL, todayISO } from "@/lib/formatters";
-import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
+import { monthLabelLong } from "@/lib/monthUtils";
+import { usePersistedMes } from "@/lib/usePersistedMes";
 
 const PAGINA_TAMANHO = 50;
 
@@ -98,15 +100,41 @@ interface GrupoCartao {
 
 export default function LancamentosPage() {
   const token = useSessionToken();
-  const [mes, setMes] = useState(currentMonth());
+  const searchParams = useSearchParams();
+  const [mes, setMes] = usePersistedMes();
+
+  // Pré-filtro vindo da URL (?categoriaId=X&mes=YYYY-MM&tipo=despesa|receita)
+  const categoriaIdQuery = searchParams.get("categoriaId") ?? "";
+  const mesQuery = searchParams.get("mes");
+  const tipoQuery = searchParams.get("tipo") as FiltroTipo | null;
+
+  // Aplica mes da URL uma vez quando carrega
+  useEffect(() => {
+    if (mesQuery && /^\d{4}-\d{2}$/.test(mesQuery) && mesQuery !== mes) {
+      setMes(mesQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mesQuery]);
 
   // Filtros
   const [busca, setBusca] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>("todos");
+  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>(
+    tipoQuery && ["despesa", "receita", "transferencia", "todos"].includes(tipoQuery)
+      ? tipoQuery
+      : "todos"
+  );
   const [filtroContaId, setFiltroContaId] = useState("");
-  const [filtroCategoriaId, setFiltroCategoriaId] = useState("");
+  const [filtroCategoriaId, setFiltroCategoriaId] = useState(categoriaIdQuery);
   const [filtroPagadorId, setFiltroPagadorId] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("todos");
+
+  // Atualiza filtro se a query string mudar (navegação dentro da SPA)
+  useEffect(() => {
+    if (categoriaIdQuery && categoriaIdQuery !== filtroCategoriaId) {
+      setFiltroCategoriaId(categoriaIdQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaIdQuery]);
 
   // Seleção + paginação
   const [selecao, setSelecao] = useState<Set<SelecaoKey>>(new Set());

@@ -196,6 +196,7 @@ export function FinanceiroDashboard({
           estouradas={estouradas?.map((e) => ({ categoriaId: e.categoriaId, nome: e.nome, percentual: e.percentual }))}
           resumo={resumo ? { totalReceitas: resumo.totalReceitas } : undefined}
           mesLabel={monthLabelLong(mes)}
+          mes={mes}
         />
       </motion.section>
 

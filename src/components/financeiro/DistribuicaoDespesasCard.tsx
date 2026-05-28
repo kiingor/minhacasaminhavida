@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { Download, AlertCircle, TrendingUp, Wallet } from "lucide-react";
@@ -36,9 +37,11 @@ interface Props {
   estouradas?: EstouradaItem[];
   resumo?: ResumoShape;
   mesLabel?: string;
+  /** Mês YYYY-MM — usado pra gerar link para /financeiro/lancamentos filtrado */
+  mes?: string;
 }
 
-export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel }: Props) {
+export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel, mes }: Props) {
   const ordenado = useMemo(
     () => (data ?? []).slice().sort((a, b) => b.valor - a.valor),
     [data],
@@ -144,42 +147,48 @@ export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel }:
               const barPct = maxValor > 0 ? (c.valor / maxValor) * 100 : 0;
               const estourou = estouroSet.has(c.categoriaId);
 
+              const href = `/financeiro/lancamentos?categoriaId=${c.categoriaId}&tipo=despesa${mes ? `&mes=${mes}` : ""}`;
               return (
                 <motion.li
                   key={c.categoriaId}
                   initial={{ opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03 }}
-                  className="grid grid-cols-[1fr_120px_90px_60px] gap-3 px-1 py-2 items-center"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-sm shrink-0"
-                      style={{ background: c.corPaleta }}
-                      aria-hidden
-                    />
-                    <Icon size={13} className="text-ink-500 shrink-0" />
-                    <span className="text-[13px] font-medium text-ink-900 truncate">{c.label}</span>
-                    {estourou && <Pill tone="dark" size="xs">estouro</Pill>}
-                  </div>
+                  <Link
+                    href={href}
+                    className="grid grid-cols-[1fr_120px_90px_60px] gap-3 px-1 py-2 items-center rounded-lg hover:bg-cream-50 transition-colors"
+                    title={`Ver lançamentos de ${c.label} em ${mesLabel ?? "este mês"}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-sm shrink-0"
+                        style={{ background: c.corPaleta }}
+                        aria-hidden
+                      />
+                      <Icon size={13} className="text-ink-500 shrink-0" />
+                      <span className="text-[13px] font-medium text-ink-900 truncate">{c.label}</span>
+                      {estourou && <Pill tone="dark" size="xs">estouro</Pill>}
+                    </div>
 
-                  <div className="h-1.5 rounded-full bg-cream-200 overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: c.corPaleta }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${barPct}%` }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    />
-                  </div>
+                    <div className="h-1.5 rounded-full bg-cream-200 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: c.corPaleta }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barPct}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                      />
+                    </div>
 
-                  <span className="font-mono text-[13px] font-semibold text-ink-900 text-right tabular-nums">
-                    {formatBRL(c.valor)}
-                  </span>
+                    <span className="font-mono text-[13px] font-semibold text-ink-900 text-right tabular-nums">
+                      {formatBRL(c.valor)}
+                    </span>
 
-                  <span className="text-[11px] font-semibold text-ink-500 text-right tabular-nums">
-                    {pct.toFixed(1).replace(".", ",")}%
-                  </span>
+                    <span className="text-[11px] font-semibold text-ink-500 text-right tabular-nums">
+                      {pct.toFixed(1).replace(".", ",")}%
+                    </span>
+                  </Link>
                 </motion.li>
               );
             })}

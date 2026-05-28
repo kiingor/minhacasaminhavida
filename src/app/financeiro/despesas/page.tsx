@@ -16,7 +16,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ParcelasView } from "@/components/financeiro/ParcelasView";
 import { EfetivarDialog } from "@/components/financeiro/EfetivarDialog";
 import { ExcluirLancamentoDialog, type EscopoExclusao } from "@/components/financeiro/ExcluirLancamentoDialog";
-import { currentMonth, monthLabelLong } from "@/lib/monthUtils";
+import { monthLabelLong } from "@/lib/monthUtils";
+import { usePersistedMes } from "@/lib/usePersistedMes";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
 
@@ -24,7 +25,7 @@ type StatusFilter = "todos" | "pago" | "pendente";
 
 export default function DespesasPage() {
   const token = useSessionToken();
-  const [mes, setMes] = useState(currentMonth());
+  const [mes, setMes] = usePersistedMes();
   const [showForm, setShowForm] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingDespesa, setEditingDespesa] = useState<any>(null);

@@ -1,10 +1,9 @@
 "use client";
-import { useState } from "react";
 import { FinanceiroDashboard } from "@/components/financeiro/FinanceiroDashboard";
-import { currentMonth } from "@/lib/monthUtils";
+import { usePersistedMes } from "@/lib/usePersistedMes";
 
 export default function FinanceiroPage() {
-  const [mes, setMes] = useState(currentMonth());
+  const [mes, setMes] = usePersistedMes();
   return (
     <div className="py-6 md:py-10">
       <FinanceiroDashboard mes={mes} onMesChange={setMes} />

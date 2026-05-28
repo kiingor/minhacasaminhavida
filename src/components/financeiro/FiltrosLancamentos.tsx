@@ -3,6 +3,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 
 export type FiltroTipo = "todos" | "despesa" | "receita" | "transferencia";
 export type FiltroStatus = "todos" | "efetivado" | "pendente";
@@ -174,20 +175,29 @@ export function FiltrosLancamentos(props: Props) {
               </div>
 
               <div className="space-y-4">
-                <SelectField label="Conta" value={filtroContaId} onChange={onFiltroContaIdChange}>
-                  <option value="">Todas as contas</option>
-                  {contas.map((c) => <option key={c._id} value={c._id}>{c.nome}</option>)}
-                </SelectField>
+                <SearchableField
+                  label="Conta"
+                  value={filtroContaId}
+                  onChange={onFiltroContaIdChange}
+                  emptyLabel="Todas as contas"
+                  options={contas.map((c) => ({ value: c._id, label: c.nome }))}
+                />
 
-                <SelectField label="Categoria" value={filtroCategoriaId} onChange={onFiltroCategoriaIdChange}>
-                  <option value="">Todas as categorias</option>
-                  {categoriasFiltradas.map((c) => <option key={c._id} value={c._id}>{c.nome}</option>)}
-                </SelectField>
+                <SearchableField
+                  label="Categoria"
+                  value={filtroCategoriaId}
+                  onChange={onFiltroCategoriaIdChange}
+                  emptyLabel="Todas as categorias"
+                  options={categoriasFiltradas.map((c) => ({ value: c._id, label: c.nome }))}
+                />
 
-                <SelectField label="Pagador" value={filtroPagadorId} onChange={onFiltroPagadorIdChange}>
-                  <option value="">Todos os pagadores</option>
-                  {pagadores.map((p) => <option key={p._id} value={p._id}>{p.apelido ?? p.nome}</option>)}
-                </SelectField>
+                <SearchableField
+                  label="Pagador"
+                  value={filtroPagadorId}
+                  onChange={onFiltroPagadorIdChange}
+                  emptyLabel="Todos os pagadores"
+                  options={pagadores.map((p) => ({ value: p._id, label: p.apelido ?? p.nome }))}
+                />
               </div>
 
               <div className="flex gap-2 pt-5 mt-5 border-t border-cream-200">
@@ -284,6 +294,31 @@ function SelectField({
       >
         {children}
       </select>
+    </div>
+  );
+}
+
+function SearchableField({
+  label, value, onChange, options, emptyLabel,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: SearchableSelectOption[];
+  emptyLabel: string;
+}) {
+  return (
+    <div>
+      <label className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-1.5 block">{label}</label>
+      <SearchableSelect
+        options={options}
+        value={value}
+        onChange={onChange}
+        allowEmpty
+        emptyLabel={emptyLabel}
+        placeholder={emptyLabel}
+        ariaLabel={label}
+      />
     </div>
   );
 }

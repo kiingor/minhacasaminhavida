@@ -2,7 +2,7 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import Link from "next/link";
-import { Gauge } from "lucide-react";
+import { Gauge, ArrowRight } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Card } from "@/components/ui/card";
@@ -76,35 +76,43 @@ export function OrcamentoCategoriasCard({ mes, limite = 6 }: Props) {
             const tone = barraTone(it.status as Status, it.percentual);
             const Icon = iconeDaCategoria(it.icone);
             const widthBar = Math.min(100, it.percentual);
+            const href = `/financeiro/lancamentos?categoriaId=${it.categoriaId}&tipo=despesa&mes=${mes}`;
             return (
-              <li key={it.categoriaId} className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div
-                      className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-                      style={{ background: `${it.cor}20`, color: it.cor }}
-                    >
-                      <Icon size={12} />
+              <li key={it.categoriaId}>
+                <Link
+                  href={href}
+                  className="block space-y-1.5 -mx-2 px-2 py-1.5 rounded-lg hover:bg-cream-50 transition-colors group"
+                  title={`Ver lançamentos de ${it.nome}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div
+                        className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                        style={{ background: `${it.cor}20`, color: it.cor }}
+                      >
+                        <Icon size={12} />
+                      </div>
+                      <span className="text-sm text-ink-800 truncate group-hover:text-coral-700">{it.nome}</span>
+                      <ArrowRight size={10} className="text-ink-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    <span className="text-sm text-ink-800 truncate">{it.nome}</span>
+                    <div className="flex items-center gap-2 shrink-0 text-[11px]">
+                      <span className="font-mono text-ink-500 tabular-nums">
+                        {formatBRL(it.realizado)} / {formatBRL(it.limite)}
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] tabular-nums ${tone.label} ${tone.bg}`}
+                      >
+                        {it.percentual}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 text-[11px]">
-                    <span className="font-mono text-ink-500 tabular-nums">
-                      {formatBRL(it.realizado)} / {formatBRL(it.limite)}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] tabular-nums ${tone.label} ${tone.bg}`}
-                    >
-                      {it.percentual}%
-                    </span>
+                  <div className={`h-1.5 rounded-full overflow-hidden ${tone.bg}`}>
+                    <div
+                      className={`h-full rounded-full transition-all ${tone.bar}`}
+                      style={{ width: `${widthBar}%` }}
+                    />
                   </div>
-                </div>
-                <div className={`h-1.5 rounded-full overflow-hidden ${tone.bg}`}>
-                  <div
-                    className={`h-full rounded-full transition-all ${tone.bar}`}
-                    style={{ width: `${widthBar}%` }}
-                  />
-                </div>
+                </Link>
               </li>
             );
           })}

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, QueryCtx } from "../_generated/server";
-import { getCurrentUser } from "../_helpers";
+import { getCurrentUser, logExclusao } from "../_helpers";
 import { Doc, Id } from "../_generated/dataModel";
 
 export const list = query({
@@ -485,6 +485,16 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const meta = await ctx.db.get(id);
     if (!meta || meta.familyId !== user.familyId) throw new Error("Não encontrado");
+    // Audit log antes de desativar (soft delete preserva aportes do histórico)
+    await logExclusao(ctx, {
+      entityType: meta.tipoEspecial === "reserva_emergencia" ? "draft" : "draft", // genérico, ajustar se quiser tipo próprio
+      entityId: meta._id as string,
+      entityData: meta,
+      mutationCalled: "metas.remove (desativação)",
+      contexto: meta.tipoEspecial === "reserva_emergencia" ? "reserva_emergencia" : "meta_comum",
+      familyId: user.familyId,
+      userId: user._id,
+    });
     await ctx.db.patch(id, { ativa: false });
   },
 });

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useMutation } from "convex/react";
-import { Shield, Plus, Pencil, Sparkles, Check, Info } from "lucide-react";
+import { Shield, Plus, Pencil, Sparkles, Check, Info, Trash2, Loader2 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,29 @@ interface Props {
 }
 
 export function ReservaEmergenciaCard({ info }: Props) {
+  const token = useSessionToken();
+  const removerMeta = useMutation(api.financeiro.metas.remove);
   const [showCriar, setShowCriar] = useState(false);
   const [showAporte, setShowAporte] = useState(false);
   const [showEditMeses, setShowEditMeses] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function handleExcluir() {
+    if (!info.meta || !token) return;
+    if (!window.confirm(
+      "Excluir esta Reserva de Emergência?\n\n" +
+      "O valor alvo será removido. Aportes já registrados são preservados " +
+      "no histórico (a meta fica desativada, não apagada do banco)."
+    )) return;
+    setExcluindo(true);
+    try {
+      await removerMeta({ sessionToken: token, id: info.meta._id });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao excluir reserva");
+    } finally {
+      setExcluindo(false);
+    }
+  }
 
   if (!info.meta) {
     return (
@@ -98,14 +118,27 @@ export function ReservaEmergenciaCard({ info }: Props) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowEditMeses(true)}
-            className="shrink-0 w-9 h-9 rounded-full bg-white/80 hover:bg-white shadow-sm flex items-center justify-center text-slate-700 transition-colors"
-            aria-label="Editar meses de cobertura"
-          >
-            <Pencil size={14} />
-          </button>
+          <div className="shrink-0 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowEditMeses(true)}
+              className="w-9 h-9 rounded-full bg-white/80 hover:bg-white shadow-sm flex items-center justify-center text-slate-700 transition-colors"
+              aria-label="Editar meses de cobertura"
+              title="Editar meses de cobertura"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={handleExcluir}
+              disabled={excluindo}
+              className="w-9 h-9 rounded-full bg-white/80 hover:bg-rose-50 hover:text-rose-600 shadow-sm flex items-center justify-center text-slate-500 transition-colors disabled:opacity-50"
+              aria-label="Excluir reserva"
+              title="Excluir reserva"
+            >
+              {excluindo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            </button>
+          </div>
         </div>
 
         {/* Hero / Valores */}

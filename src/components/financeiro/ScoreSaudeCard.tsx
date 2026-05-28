@@ -134,7 +134,7 @@ function calcularFatores(ind: IndicadoresShape, prog?: ProgressoShape): Fator[] 
       display: `${formatPct(ind.comprometimentoFixo.valor)}%`,
     },
     {
-      nome: "Reserva",
+      nome: "Cobertura",
       pontos: pontosPorStatus(ind.diasReserva.status),
       status: ind.diasReserva.status,
       display: ind.diasReserva.valor >= 999 ? "999+ dias" : `${ind.diasReserva.valor} dias`,

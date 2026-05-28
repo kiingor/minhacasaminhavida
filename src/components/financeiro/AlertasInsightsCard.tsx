@@ -169,13 +169,13 @@ function construirAlertas(estouradas: EstouradaItem[], indicadores: IndicadoresS
     });
   }
 
-  // Reserva de emergência crítica
+  // Cobertura financeira crítica (saldo ÷ gasto diário)
   if (indicadores.diasReserva.status === "vermelho" && indicadores.diasReserva.valor < 30) {
     out.push({
       id: "reserva-baixa",
       severity: "critico",
-      title: "Reserva de emergência insuficiente",
-      desc: `Você tem ${indicadores.diasReserva.valor === 999 ? "muitos" : indicadores.diasReserva.valor} dia${indicadores.diasReserva.valor === 1 ? "" : "s"} de cobertura — meta recomendada é 180 dias (6 meses).`,
+      title: "Cobertura financeira insuficiente",
+      desc: `Seu saldo cobre apenas ${indicadores.diasReserva.valor === 999 ? "muitos" : indicadores.diasReserva.valor} dia${indicadores.diasReserva.valor === 1 ? "" : "s"} de gastos — recomendado é 180 dias (6 meses).`,
       badge: "Crítico",
       icon: LifeBuoy,
     });
@@ -183,8 +183,8 @@ function construirAlertas(estouradas: EstouradaItem[], indicadores: IndicadoresS
     out.push({
       id: "reserva-amarela",
       severity: "atencao",
-      title: "Reserva em construção",
-      desc: `Você tem ${indicadores.diasReserva.valor} dias de cobertura. Continue aportando até atingir 180 dias.`,
+      title: "Cobertura em construção",
+      desc: `Seu saldo cobre ${indicadores.diasReserva.valor} dias de gastos. Continue economizando até atingir 180 dias.`,
       icon: LifeBuoy,
     });
   }

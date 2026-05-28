@@ -106,14 +106,14 @@ function ReservaCard({ data }: { data?: { valor: number; status: Status } }) {
     <KpiCard
       icon={LifeBuoy}
       tone={toneFromStatus(data.status)}
-      label="Reserva de emergência"
+      label="Dias de cobertura"
       value={<span>{display}<span className="text-xl opacity-60 ml-1">dias</span></span>}
       hint={
         data.status === "verde"
-          ? "Meta de 180 dias atingida"
+          ? "Saldo cobre 180+ dias de gastos"
           : data.status === "amarelo"
-          ? "Em construção — meta 180 dias"
-          : "Crítico — meta 180 dias"
+          ? "Saldo ÷ gasto diário — meta 180 dias"
+          : "Crítico — saldo cobre poucos dias"
       }
       statusDot={data.status}
     />

@@ -1320,35 +1320,41 @@ export const indicadoresSaude = query({
     const rMes = receitas.filter((r) => isReceitaInMes(r, mesAlvo));
     const { pagoSet, recebidoSet } = await baixasDoMes(ctx, familyId, mesAlvo);
 
+    // EFETIVADOS (usados pra "Contas pagas" e como sub-info)
     const receitaRecebida = rMes
       .filter((r) => recebidoSet.has(r._id as string))
       .reduce((s, r) => s + valorReceitaNoMes(r, mesAlvo), 0);
     const despesaPaga = dMes
       .filter((d) => pagoSet.has(d._id as string))
       .reduce((s, d) => s + valorDespesaNoMes(d, mesAlvo), 0);
-    const despesaFixaPaga = dMes
-      .filter((d) => d.tipo === "fixa" && pagoSet.has(d._id as string))
+
+    // PREVISTOS DO MÊS (totais — efetivados + pendentes). Usados pros indicadores
+    // de saúde, pra refletir a realidade do mês mesmo no dia 1, antes de pagar nada.
+    const receitaPrevista = rMes.reduce((s, r) => s + valorReceitaNoMes(r, mesAlvo), 0);
+    const despesaPrevista = dMes.reduce((s, d) => s + valorDespesaNoMes(d, mesAlvo), 0);
+    const despesaFixaPrevista = dMes
+      .filter((d) => d.tipo === "fixa")
       .reduce((s, d) => s + valorDespesaNoMes(d, mesAlvo), 0);
 
-    // ---- 1) % poupanca do mes ----
+    // ---- 1) % poupanca do mes (baseado em PREVISTO) ----
     let poupancaPercentValor = 0;
     let poupancaStatus: StatusIndicador = "amarelo";
-    if (receitaRecebida > 0) {
-      poupancaPercentValor = ((receitaRecebida - despesaPaga) / receitaRecebida) * 100;
+    if (receitaPrevista > 0) {
+      poupancaPercentValor = ((receitaPrevista - despesaPrevista) / receitaPrevista) * 100;
       if (poupancaPercentValor >= 20) poupancaStatus = "verde";
       else if (poupancaPercentValor >= 10) poupancaStatus = "amarelo";
       else poupancaStatus = "vermelho";
     } else {
-      // Receita zerada: status amarelo (sem dados pra avaliar).
+      // Receita prevista zerada: status amarelo (sem dados pra avaliar).
       poupancaPercentValor = 0;
       poupancaStatus = "amarelo";
     }
 
-    // ---- 2) % comprometimento fixo ----
+    // ---- 2) % comprometimento fixo (baseado em PREVISTO) ----
     let comprometimentoValor = 0;
     let comprometimentoStatus: StatusIndicador = "amarelo";
-    if (receitaRecebida > 0) {
-      comprometimentoValor = (despesaFixaPaga / receitaRecebida) * 100;
+    if (receitaPrevista > 0) {
+      comprometimentoValor = (despesaFixaPrevista / receitaPrevista) * 100;
       if (comprometimentoValor <= 50) comprometimentoStatus = "verde";
       else if (comprometimentoValor <= 70) comprometimentoStatus = "amarelo";
       else comprometimentoStatus = "vermelho";
@@ -1368,7 +1374,17 @@ export const indicadoresSaude = query({
       saldoTotal += await calcularSaldoContaInterno(ctx, c._id, familyId);
     }
     const mediaDespesas3m = await mediaDespesasNMesesInterno(ctx, familyId, 3);
-    const despesaDiaria = mediaDespesas3m > 0 ? Math.round(mediaDespesas3m / 30) : 0;
+    // Despesa diária estimada: usa média dos últimos 3 meses; se sem histórico,
+    // cai pra despesa PREVISTA do mês atual / 30 — assim família nova com
+    // muitas contas previstas já vê reserva realista.
+    let despesaDiaria: number;
+    if (mediaDespesas3m > 0) {
+      despesaDiaria = Math.round(mediaDespesas3m / 30);
+    } else if (despesaPrevista > 0) {
+      despesaDiaria = Math.round(despesaPrevista / 30);
+    } else {
+      despesaDiaria = 0;
+    }
 
     let diasReservaValor: number;
     let diasReservaStatus: StatusIndicador;
@@ -1378,7 +1394,8 @@ export const indicadoresSaude = query({
       diasReservaValor = 0;
       diasReservaStatus = "vermelho";
     } else if (despesaDiaria <= 0) {
-      // Tem saldo MAS sem despesas históricas: cobertura "infinita" (capped 999).
+      // Tem saldo MAS NENHUMA despesa (nem histórica nem prevista): cobertura
+      // "infinita" (capped 999). Caso raro — família zerada sem nada cadastrado.
       diasReservaValor = 999;
       diasReservaStatus = "verde";
     } else {
@@ -1430,14 +1447,14 @@ export const indicadoresSaude = query({
       poupancaPercent: {
         valor: Math.round(poupancaPercentValor * 10) / 10, // 1 casa decimal
         status: poupancaStatus,
-        numerador: receitaRecebida - despesaPaga,
-        denominador: receitaRecebida,
+        numerador: receitaPrevista - despesaPrevista,
+        denominador: receitaPrevista,
       },
       comprometimentoFixo: {
         valor: Math.round(comprometimentoValor * 10) / 10,
         status: comprometimentoStatus,
-        numerador: despesaFixaPaga,
-        denominador: receitaRecebida,
+        numerador: despesaFixaPrevista,
+        denominador: receitaPrevista,
       },
       diasReserva: {
         valor: diasReservaValor,

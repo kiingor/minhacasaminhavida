@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useMutation } from "convex/react";
-import { Shield, Plus, Pencil, Sparkles, Check, Info, Trash2, Loader2 } from "lucide-react";
+import { Shield, Plus, Pencil, Sparkles, Check, Info, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -25,20 +25,19 @@ export function ReservaEmergenciaCard({ info }: Props) {
   const [showCriar, setShowCriar] = useState(false);
   const [showAporte, setShowAporte] = useState(false);
   const [showEditMeses, setShowEditMeses] = useState(false);
+  const [showConfirmExcluir, setShowConfirmExcluir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+  const [erroExcluir, setErroExcluir] = useState("");
 
-  async function handleExcluir() {
+  async function confirmarExclusao() {
     if (!info.meta || !token) return;
-    if (!window.confirm(
-      "Excluir esta Reserva de Emergência?\n\n" +
-      "O valor alvo será removido. Aportes já registrados são preservados " +
-      "no histórico (a meta fica desativada, não apagada do banco)."
-    )) return;
     setExcluindo(true);
+    setErroExcluir("");
     try {
       await removerMeta({ sessionToken: token, id: info.meta._id });
+      setShowConfirmExcluir(false);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erro ao excluir reserva");
+      setErroExcluir(e instanceof Error ? e.message : "Erro ao excluir reserva");
     } finally {
       setExcluindo(false);
     }
@@ -130,7 +129,7 @@ export function ReservaEmergenciaCard({ info }: Props) {
             </button>
             <button
               type="button"
-              onClick={handleExcluir}
+              onClick={() => { setErroExcluir(""); setShowConfirmExcluir(true); }}
               disabled={excluindo}
               className="w-9 h-9 rounded-full bg-white/80 hover:bg-rose-50 hover:text-rose-600 shadow-sm flex items-center justify-center text-slate-500 transition-colors disabled:opacity-50"
               aria-label="Excluir reserva"
@@ -262,7 +261,110 @@ export function ReservaEmergenciaCard({ info }: Props) {
           onClose={() => setShowEditMeses(false)}
         />
       )}
+
+      <ConfirmarExclusaoReservaDialog
+        open={showConfirmExcluir}
+        onClose={() => !excluindo && setShowConfirmExcluir(false)}
+        onConfirm={confirmarExclusao}
+        valorAtual={meta.valorAtual}
+        valorAlvo={meta.valorAlvo}
+        excluindo={excluindo}
+        erro={erroExcluir}
+      />
     </>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Confirmação de exclusão — modal customizado (substitui window.confirm)
+// --------------------------------------------------------------------------
+interface ConfirmarExclusaoProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  valorAtual: number;
+  valorAlvo: number;
+  excluindo: boolean;
+  erro: string;
+}
+
+function ConfirmarExclusaoReservaDialog({
+  open,
+  onClose,
+  onConfirm,
+  valorAtual,
+  valorAlvo,
+  excluindo,
+  erro,
+}: ConfirmarExclusaoProps) {
+  const temAportes = valorAtual > 0;
+  return (
+    <Dialog open={open} onClose={onClose} title="Excluir Reserva de Emergência?">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 rounded-2xl border border-coral-200 bg-coral-50/60 p-4">
+          <div className="w-10 h-10 rounded-full bg-coral-500 text-white flex items-center justify-center shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-ink-900">
+              Essa ação remove a meta de reserva do dashboard.
+            </p>
+            <p className="text-xs text-ink-600 mt-1 leading-relaxed">
+              O valor alvo deixa de ser exibido. Aportes já registrados são
+              <strong> preservados no histórico</strong> (a meta fica desativada,
+              não apagada do banco — dá pra restaurar por suporte se precisar).
+            </p>
+          </div>
+        </div>
+
+        {temAportes && (
+          <div className="rounded-xl border border-cream-200 bg-cream-50 px-4 py-3 text-xs text-ink-700">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-ink-500">Aportes acumulados</span>
+              <span className="font-mono font-bold text-ink-900">
+                {formatBRL(valorAtual)} <span className="text-ink-400 font-normal">/ {formatBRL(valorAlvo)}</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-ink-500 mt-1.5">
+              Esses aportes continuam no histórico mesmo após a exclusão.
+            </p>
+          </div>
+        )}
+
+        {erro && (
+          <div className="rounded-lg bg-coral-100 border border-coral-300 p-3 text-sm text-coral-700">
+            {erro}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={excluindo}
+            className="flex-1 h-11 rounded-full border border-cream-200 text-sm font-semibold text-ink-700 hover:bg-cream-50 disabled:opacity-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={excluindo}
+            className="flex-1 h-11 rounded-full bg-coral-500 hover:bg-coral-600 text-white text-sm font-semibold shadow-pop disabled:opacity-50 inline-flex items-center justify-center gap-2 transition-colors"
+          >
+            {excluindo ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Excluindo...
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} /> Excluir reserva
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

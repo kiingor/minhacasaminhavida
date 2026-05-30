@@ -574,10 +574,29 @@ export const progressoMes = query({
     const despesas = await ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", familyId)).collect();
     const { pagoSet } = await baixasDoMes(ctx, familyId, mes);
     const dMes = despesas.filter((d) => isDespesaInMes(d, mes));
-    const totalContas = dMes.length;
-    const contasPagas = dMes.filter((d) => pagoSet.has(d._id as string)).length;
+
+    // Despesas avulsas: cada uma conta como 1 "conta".
+    // Despesas de cartão: agrupadas por cartão = 1 fatura (1 conta), pois você paga a fatura inteira de uma vez.
+    const avulsas = dMes.filter((d) => !d.cartao);
+    const faturas = new Map<string, { total: number; pago: boolean }>();
+    for (const d of dMes) {
+      if (!d.cartao) continue;
+      let f = faturas.get(d.cartao);
+      if (!f) { f = { total: 0, pago: true }; faturas.set(d.cartao, f); }
+      f.total += valorDespesaNoMes(d, mes);
+      // Fatura só está "paga" quando TODOS os lançamentos do mês daquele cartão estão pagos.
+      if (!pagoSet.has(d._id as string)) f.pago = false;
+    }
+    const faturasArr = Array.from(faturas.values());
+
+    const totalContas = avulsas.length + faturasArr.length;
+    const contasPagas =
+      avulsas.filter((d) => pagoSet.has(d._id as string)).length +
+      faturasArr.filter((f) => f.pago).length;
     const valorTotal = dMes.reduce((s, d) => s + valorDespesaNoMes(d, mes), 0);
-    const valorPago = dMes.filter((d) => pagoSet.has(d._id as string)).reduce((s, d) => s + valorDespesaNoMes(d, mes), 0);
+    const valorPago =
+      avulsas.filter((d) => pagoSet.has(d._id as string)).reduce((s, d) => s + valorDespesaNoMes(d, mes), 0) +
+      faturasArr.filter((f) => f.pago).reduce((s, f) => s + f.total, 0);
     const percentual = totalContas === 0 ? 0 : Math.round((contasPagas / totalContas) * 100);
     return { totalContas, contasPagas, valorTotal, valorPago, percentual };
   },

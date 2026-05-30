@@ -133,9 +133,9 @@ export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel, m
 
         {/* Tabela */}
         <div>
-          <div className="grid grid-cols-[1fr_120px_90px_60px] gap-3 px-1 pb-2 border-b border-cream-200">
+          <div className="grid grid-cols-[1fr_88px_48px] sm:grid-cols-[1fr_120px_90px_60px] gap-2 sm:gap-3 px-1 pb-2 border-b border-cream-200">
             <span className="text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold">Categoria</span>
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold">Distribuição</span>
+            <span className="hidden sm:block text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold">Distribuição</span>
             <span className="text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold text-right">Valor</span>
             <span className="text-[10px] uppercase tracking-[0.12em] text-ink-400 font-semibold text-right">%</span>
           </div>
@@ -157,7 +157,7 @@ export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel, m
                 >
                   <Link
                     href={href}
-                    className="grid grid-cols-[1fr_120px_90px_60px] gap-3 px-1 py-2 items-center rounded-lg hover:bg-cream-50 transition-colors"
+                    className="grid grid-cols-[1fr_88px_48px] sm:grid-cols-[1fr_120px_90px_60px] gap-2 sm:gap-3 px-1 py-2 items-center rounded-lg hover:bg-cream-50 transition-colors"
                     title={`Ver lançamentos de ${c.label} em ${mesLabel ?? "este mês"}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -171,7 +171,7 @@ export function DistribuicaoDespesasCard({ data, estouradas, resumo, mesLabel, m
                       {estourou && <Pill tone="dark" size="xs">estouro</Pill>}
                     </div>
 
-                    <div className="h-1.5 rounded-full bg-cream-200 overflow-hidden">
+                    <div className="hidden sm:block h-1.5 rounded-full bg-cream-200 overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
                         style={{ background: c.corPaleta }}

@@ -81,7 +81,7 @@ export default function TarefasPage() {
         <Shortcut href="/tarefas/hoje"     icon={ListPlus}     title="Hoje"          subtitle="Checks gamificados" tone="coral" />
         <Shortcut href="/tarefas/catalogo" icon={BookOpen}     title="Catálogo"      subtitle="Gerenciar tarefas"  tone="white" />
         <Shortcut href="/tarefas/agenda"   icon={CalendarDays} title="Definir"       subtitle="Encaixe inteligente" tone="white" />
-        <Shortcut href="/tv"               icon={Tv2}          title="Modo TV"       subtitle="Tela cheia"          tone="dark" external />
+        <Shortcut href="/tv"               icon={Tv2}          title="Modo Painel"   subtitle="Tela cheia"          tone="dark" external />
       </motion.section>
 
       <motion.section variants={item} className="grid gap-4 grid-cols-3">

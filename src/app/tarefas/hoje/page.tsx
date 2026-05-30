@@ -47,7 +47,7 @@ export default function TarefasHojePage() {
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors"
-              title="Abrir tela de tarefas em nova guia (modo TV)"
+              title="Abrir tela de tarefas em nova guia (modo painel)"
             >
               <ExternalLink size={15} />
               <span className="hidden sm:inline">Abrir em tela cheia</span>

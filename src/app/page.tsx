@@ -61,7 +61,7 @@ export default function Home() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="py-6 md:py-10 space-y-6">
 
-      <motion.section variants={item} className="grid gap-6 md:grid-cols-[auto_1fr] items-center">
+      <motion.section variants={item} className="grid grid-cols-1 gap-6 md:grid-cols-[auto_1fr] items-center">
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-2xl border border-cream-200 bg-white flex flex-col items-center justify-center shadow-soft">
             <span className="font-display font-extrabold text-lg leading-none text-ink-900">{new Date().getDate()}</span>
@@ -117,7 +117,7 @@ export default function Home() {
         />
       </motion.section>
 
-      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+      <motion.section variants={item} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
@@ -195,7 +195,7 @@ export default function Home() {
                   <li key={d._id} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">
                       <AlertCircle size={12} className="text-ink-400 shrink-0" />
-                      <span className="truncate text-ink-700">{d.descricao}</span>
+                      <span className="truncate text-ink-700 min-w-0">{d.descricao}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-ink-400">{formatDate(d.dataVencimento)}</span>
@@ -209,7 +209,7 @@ export default function Home() {
         </Card>
       </motion.section>
 
-      <motion.section variants={item} className="grid gap-4 md:grid-cols-2">
+      <motion.section variants={item} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display font-bold text-lg text-ink-900 flex items-center gap-2">
@@ -297,7 +297,7 @@ export default function Home() {
             { href: "/financeiro/despesas",   label: "Despesas", icon: ArrowDownCircle },
             { href: "/financeiro/receitas",   label: "Receitas", icon: ArrowUpCircle },
             { href: "/financeiro/metas",      label: "Metas",    icon: Target },
-            { href: "/tv",                    label: "Modo TV",  icon: Tv2, target: "_blank" as const },
+            { href: "/tv",                    label: "Modo Painel", icon: Tv2, target: "_blank" as const },
             { href: "/pessoas",               label: "Pessoas",  icon: Users },
           ].map(({ href, label, icon: Icon, target }) => (
             <Link

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -9,8 +9,12 @@ import {
   CreditCard,
   Info,
   Stethoscope,
+  RotateCcw,
+  Loader2,
+  ArrowLeftRight,
 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -274,6 +278,8 @@ export function DiagnosticoSaldosDialog({ open, onClose }: Props) {
                             Saldo manual ativo (sobrescreve cálculo) — vigente: {formatBRL(c.saldoManual ?? 0)}
                           </div>
                         )}
+                        {/* Extrato: o que está sendo contado nessa conta (com desfazer) */}
+                        <ExtratoConta contaId={c._id as Id<"contas">} />
                       </div>
                     )}
                   </div>
@@ -284,6 +290,89 @@ export function DiagnosticoSaldosDialog({ open, onClose }: Props) {
         </div>
       )}
     </Dialog>
+  );
+}
+
+function ExtratoConta({ contaId }: { contaId: Id<"contas"> }) {
+  const token = useSessionToken();
+  const extrato = useQuery(
+    api.financeiro.contas.extratoConta,
+    token ? { sessionToken: token, contaId } : "skip"
+  );
+  const desfazerDespesa = useMutation(api.financeiro.despesas.desfazerEfetivacao);
+  const desfazerReceita = useMutation(api.financeiro.receitas.desfazerEfetivacao);
+  const [desfazendo, setDesfazendo] = useState<string | null>(null);
+
+  async function desfazer(origem: "despesa" | "receita", lancamentoId: string, mes: string) {
+    if (!token) return;
+    const chave = `${lancamentoId}:${mes}`;
+    setDesfazendo(chave);
+    try {
+      if (origem === "despesa") {
+        await desfazerDespesa({ sessionToken: token, id: lancamentoId as Id<"despesas">, mes });
+      } else {
+        await desfazerReceita({ sessionToken: token, id: lancamentoId as Id<"receitas">, mes });
+      }
+    } finally {
+      setDesfazendo(null);
+    }
+  }
+
+  if (extrato === undefined) {
+    return <div className="mt-2 pt-2 border-t border-cream-200"><Skeleton className="h-12 rounded-lg" /></div>;
+  }
+  if (extrato.itens.length === 0) {
+    return (
+      <div className="mt-2 pt-2 border-t border-cream-200 text-[11px] text-ink-400">
+        Nada efetivado nesta conta — saldo = apenas o saldo inicial.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-cream-200">
+      <div className="text-[10px] uppercase tracking-wide text-ink-400 font-semibold mb-1">
+        Extrato — o que está sendo contado ({extrato.itens.length})
+      </div>
+      <ul className="rounded-lg bg-white border border-cream-200 divide-y divide-cream-100 max-h-60 overflow-y-auto">
+        {extrato.itens.map((it, idx) => {
+          const ehTransfer = it.origem.startsWith("transferencia");
+          const chave = `${it.lancamentoId}:${it.mes}`;
+          return (
+            <li key={`${it.origem}-${it.lancamentoId}-${it.mes}-${idx}`} className="px-2.5 py-1.5 flex items-center gap-2 text-xs">
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-cream-100 text-ink-600 shrink-0">
+                {it.mes ?? it.data.slice(0, 7)}
+              </span>
+              {ehTransfer && <ArrowLeftRight size={11} className="text-ink-400 shrink-0" />}
+              <span className="flex-1 truncate text-ink-700">{it.descricao}</span>
+              <span className={`font-mono tabular-nums shrink-0 ${it.sinal === "+" ? "text-emerald-600" : "text-rose-600"}`}>
+                {it.sinal}{formatBRL(it.valor)}
+              </span>
+              {it.desfazivel && it.lancamentoId && it.mes ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (it.origem !== "despesa" && it.origem !== "receita") return;
+                    if (it.lancamentoId && it.mes) desfazer(it.origem, it.lancamentoId, it.mes);
+                  }}
+                  disabled={desfazendo === chave}
+                  className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-coral-600 disabled:opacity-50"
+                  aria-label="Desfazer efetivação"
+                  title="Desfazer efetivação (volta para pendente)"
+                >
+                  {desfazendo === chave ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                </button>
+              ) : (
+                <span className="w-6 shrink-0" />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[10px] text-ink-400 mt-1">
+        O saldo soma <b>todos os meses</b>. Use ↺ para desfazer um pagamento/recebimento que não deveria contar.
+      </p>
+    </div>
   );
 }
 

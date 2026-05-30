@@ -85,6 +85,51 @@ export const confirmar = mutation({
         return { despesaId };
       }
 
+      if (d.tipo === "despesa_efetivada") {
+        // Valida conta (se informada) antes de criar qualquer coisa.
+        if (payload.contaId) {
+          const conta = await ctx.db.get(payload.contaId);
+          if (!conta || conta.familyId !== user.familyId) {
+            throw new Error("Conta inválida");
+          }
+        }
+        const agora = new Date().toISOString();
+        const hoje = agora.slice(0, 10);
+        const mes = String(payload.mes || String(payload.dataVencimento).slice(0, 7));
+        const despesaId = await ctx.db.insert("despesas", {
+          descricao: String(payload.descricao),
+          valor: Math.abs(Math.round(Number(payload.valor) || 0)),
+          tipo: payload.tipo,
+          categoriaId: payload.categoriaId,
+          pessoaId: payload.pessoaId,
+          contaId: payload.contaId,
+          dataVencimento: payload.dataVencimento,
+          // Sempre conta/dinheiro — despesa de cartão NÃO usa este fluxo
+          // (cartão entra na fatura e não debita saldo de conta na hora).
+          pago: false,
+          observacao: payload.observacao,
+          criadoPor: user._id,
+          familyId: user.familyId,
+          criadoEm: agora,
+        });
+        // Efetiva imediatamente: registra o pagamento no mês, com a conta escolhida.
+        await ctx.db.insert("pagamentosDespesas", {
+          despesaId,
+          mes,
+          dataPagamento: hoje,
+          contaId: payload.contaId,
+          familyId: user.familyId,
+          criadoPor: user._id,
+          criadoEm: agora,
+        });
+        await ctx.db.patch(id, {
+          status: "confirmado",
+          despesaIdCriada: despesaId,
+          resolvidoEm: agora,
+        });
+        return { despesaId };
+      }
+
       if (d.tipo === "receita") {
         const receitaId = await ctx.db.insert("receitas", {
           descricao: String(payload.descricao),
@@ -189,7 +234,8 @@ export const _criarDraftInternal = internalMutation({
       v.literal("despesa"),
       v.literal("receita"),
       v.literal("marcar_paga"),
-      v.literal("marcar_recebida")
+      v.literal("marcar_recebida"),
+      v.literal("despesa_efetivada")
     ),
     payload: v.string(),
     resumo: v.string(),

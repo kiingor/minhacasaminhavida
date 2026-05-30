@@ -241,6 +241,10 @@ export const desfazerEfetivacao = mutation({
       .withIndex("by_despesa_mes", (q) => q.eq("despesaId", id).eq("mes", mes))
       .unique();
     if (existente) {
+      // Apaga o comprovante do storage junto (evita arquivo órfão).
+      if (existente.comprovanteStorageId) {
+        await ctx.storage.delete(existente.comprovanteStorageId);
+      }
       await ctx.db.delete(existente._id);
       return { desfeito: true };
     }
@@ -304,6 +308,16 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const d = await ctx.db.get(id);
     if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
+    // Cascade: remove pagamentos vinculados (e seus comprovantes no storage)
+    // pra não deixar registros/arquivos órfãos nem inconsistência de saldo.
+    const pagamentos = await ctx.db
+      .query("pagamentosDespesas")
+      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", id))
+      .collect();
+    for (const p of pagamentos) {
+      if (p.comprovanteStorageId) await ctx.storage.delete(p.comprovanteStorageId);
+      await ctx.db.delete(p._id);
+    }
     await logExclusao(ctx, {
       entityType: "despesa",
       entityId: d._id as string,

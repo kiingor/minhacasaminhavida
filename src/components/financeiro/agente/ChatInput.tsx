@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import { Send, Paperclip, Mic, Loader2, Square } from "lucide-react";
+import { Send, Paperclip, Mic, Loader2, Square, Camera } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
@@ -32,6 +32,7 @@ export function ChatInput({
   const [erro, setErro] = useState<string | null>(null);
   const [gravando, setGravando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
@@ -198,6 +199,18 @@ export function ChatInput({
             e.target.value = "";
           }}
         />
+        {/* Input dedicado à câmera: capture abre a câmera direto no mobile */}
+        <input
+          ref={cameraRef}
+          type="file"
+          hidden
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => {
+            adicionarArquivos(e.target.files);
+            e.target.value = "";
+          }}
+        />
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -207,6 +220,16 @@ export function ChatInput({
           title="Anexar imagem, PDF ou CSV"
         >
           <Paperclip size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          disabled={desabilitado || gravando}
+          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
+          aria-label="Tirar foto"
+          title="Tirar foto com a câmera"
+        >
+          <Camera size={18} />
         </button>
         <button
           type="button"

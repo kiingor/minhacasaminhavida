@@ -524,3 +524,126 @@ export const diagnostico = query({
     };
   },
 });
+
+export interface ExtratoItem {
+  origem: "despesa" | "receita" | "transferencia_entrada" | "transferencia_saida";
+  // despesaId/receitaId — necessário pra desfazer (null em transferências).
+  lancamentoId: string | null;
+  mes: string | null; // YYYY-MM do pagamento/recebimento (pra desfazer). Null em transferências.
+  descricao: string;
+  valor: number; // magnitude em centavos
+  sinal: "+" | "-";
+  data: string; // YYYY-MM-DD
+  desfazivel: boolean;
+}
+
+/**
+ * Extrato de uma conta: TODOS os lançamentos efetivados que compõem o saldo
+ * (em qualquer mês), na mesma lógica de calcularSaldoConta. Permite ver e
+ * desfazer exatamente o que está sendo contado — diagnostica "saldo fantasma".
+ * Se `mes` for informado, filtra só aquele mês de pagamento/recebimento.
+ */
+export const extratoConta = query({
+  args: {
+    sessionToken: v.string(),
+    contaId: v.id("contas"),
+    mes: v.optional(v.string()), // YYYY-MM (opcional)
+  },
+  handler: async (ctx, { sessionToken, contaId, mes }): Promise<{
+    saldoInicial: number;
+    totalEntradas: number;
+    totalSaidas: number;
+    itens: ExtratoItem[];
+  }> => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const conta = await ctx.db.get(contaId);
+    if (!conta || conta.familyId !== user.familyId) throw new Error("Conta não encontrada");
+    const familyId = user.familyId;
+
+    const [pagamentos, recebimentos, transfs] = await Promise.all([
+      ctx.db.query("pagamentosDespesas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId)).collect(),
+      ctx.db.query("recebimentosReceitas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId)).collect(),
+      ctx.db.query("transferencias").withIndex("by_family_data", (q) => q.eq("familyId", familyId)).collect(),
+    ]);
+
+    const itens: ExtratoItem[] = [];
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+
+    for (const p of pagamentos) {
+      if (!p.dataPagamento) continue;
+      if (mes && p.mes !== mes) continue;
+      const d = await ctx.db.get(p.despesaId);
+      if (!d) continue;
+      if (d.cartao) continue; // cartão não impacta saldo de conta
+      const contaResolvida = p.contaId ?? d.contaId;
+      if (contaResolvida !== contaId) continue;
+      const valor = p.valorPago ?? d.valor;
+      totalSaidas += valor;
+      itens.push({
+        origem: "despesa",
+        lancamentoId: p.despesaId as string,
+        mes: p.mes,
+        descricao: d.descricao,
+        valor,
+        sinal: "-",
+        data: p.dataPagamento,
+        desfazivel: true,
+      });
+    }
+
+    for (const rec of recebimentos) {
+      if (!rec.dataRecebimento) continue;
+      if (mes && rec.mes !== mes) continue;
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      const contaResolvida = rec.contaId ?? r.contaId;
+      if (contaResolvida !== contaId) continue;
+      const valor = rec.valorRecebido ?? r.valor;
+      totalEntradas += valor;
+      itens.push({
+        origem: "receita",
+        lancamentoId: rec.receitaId as string,
+        mes: rec.mes,
+        descricao: r.descricao,
+        valor,
+        sinal: "+",
+        data: rec.dataRecebimento,
+        desfazivel: true,
+      });
+    }
+
+    for (const t of transfs) {
+      if (mes && t.data.slice(0, 7) !== mes) continue;
+      if (t.contaDestinoId === contaId) {
+        totalEntradas += t.valor;
+        itens.push({
+          origem: "transferencia_entrada",
+          lancamentoId: null,
+          mes: null,
+          descricao: t.descricao || "Transferência recebida",
+          valor: t.valor,
+          sinal: "+",
+          data: t.data,
+          desfazivel: false,
+        });
+      }
+      if (t.contaOrigemId === contaId) {
+        totalSaidas += t.valor;
+        itens.push({
+          origem: "transferencia_saida",
+          lancamentoId: null,
+          mes: null,
+          descricao: t.descricao || "Transferência enviada",
+          valor: t.valor,
+          sinal: "-",
+          data: t.data,
+          desfazivel: false,
+        });
+      }
+    }
+
+    itens.sort((a, b) => b.data.localeCompare(a.data));
+    return { saldoInicial: conta.saldoInicial, totalEntradas, totalSaidas, itens };
+  },
+});

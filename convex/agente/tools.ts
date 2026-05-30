@@ -201,6 +201,12 @@ export const TOOL_DEFS = [
     description: "Lista pagadores cadastrados (opcional ao criar receita).",
     input_schema: { type: "object", properties: {}, required: [] },
   },
+  {
+    name: "listar_contas",
+    description:
+      "Lista as contas bancárias ativas da família (corrente, poupança, dinheiro, aplicação). Use para descobrir o contaId ao propor uma despesa já paga (propor_despesa_efetivada) e para oferecer ao usuário de qual conta saiu o dinheiro.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
   // ============== ESCRITA (DRAFT, requer confirmação) ==============
   {
     name: "propor_despesa",
@@ -243,6 +249,25 @@ export const TOOL_DEFS = [
         observacao: { type: "string" },
       },
       required: ["descricao", "valor_centavos", "categoriaId", "pessoaId", "dataPrevisao"],
+    },
+  },
+  {
+    name: "propor_despesa_efetivada",
+    description:
+      "Propõe uma despesa JÁ PAGA (efetivada) com dinheiro/conta — cria a despesa e a marca como paga num passo só. Use quando o usuário disser que JÁ pagou/comprou (ex: 'paguei 50 no mercado', 'gastei 30 no Uber'). SEMPRE inclua contaId (de qual conta saiu o dinheiro): chame listar_contas e, se o usuário não disse a conta, pergunte ou ofereça as contas ativas. NÃO use para compras no CARTÃO DE CRÉDITO (essas entram na fatura, não saem da conta na hora — use propor_despesa com o campo cartao).",
+    input_schema: {
+      type: "object",
+      properties: {
+        descricao: { type: "string" },
+        valor_centavos: { type: "number", description: "Valor em centavos (R$ 45,90 = 4590)" },
+        categoriaId: { type: "string", description: "Id da categoria (use listar_categorias)" },
+        dataVencimento: { type: "string", description: "YYYY-MM-DD — data da compra/pagamento" },
+        contaId: { type: "string", description: "Conta de onde saiu o dinheiro (use listar_contas). Recomendado." },
+        mes: { type: "string", description: "YYYY-MM do pagamento. Default: mês da dataVencimento." },
+        pessoaId: { type: "string", description: "Opcional: quem fez o gasto" },
+        observacao: { type: "string" },
+      },
+      required: ["descricao", "valor_centavos", "categoriaId", "dataVencimento"],
     },
   },
   {
@@ -833,6 +858,61 @@ export async function executarTool(
             apelido: p.apelido ?? null,
           })),
         };
+      }
+
+      case "listar_contas": {
+        const data = await exec.ctx.runQuery(api.financeiro.contas.list, {
+          sessionToken: exec.sessionToken,
+        });
+        return {
+          ok: true,
+          data: data
+            .filter((c: any) => c.ativa)
+            .map((c: any) => ({
+              _id: c._id,
+              nome: c.nome,
+              tipo: c.tipo,
+              banco: c.banco ?? null,
+            })),
+        };
+      }
+
+      case "propor_despesa_efetivada": {
+        const valor = Math.abs(Math.round(Number(args.valor_centavos) || 0));
+        const dataVencimento = String(args.dataVencimento);
+        const mes = String(args.mes || dataVencimento.slice(0, 7));
+        // Resolve o nome da conta para um resumo claro (o usuário precisa ver de qual conta sai).
+        let contaNome: string | null = null;
+        if (args.contaId) {
+          const contas = await exec.ctx.runQuery(api.financeiro.contas.list, {
+            sessionToken: exec.sessionToken,
+          });
+          contaNome = contas.find((c: any) => c._id === args.contaId)?.nome ?? null;
+        }
+        const payload = {
+          descricao: String(args.descricao),
+          valor,
+          tipo: "avulsa",
+          categoriaId: args.categoriaId,
+          dataVencimento,
+          mes,
+          contaId: args.contaId || undefined,
+          pessoaId: args.pessoaId || undefined,
+          observacao: args.observacao,
+        };
+        const resumo = `Despesa paga: ${payload.descricao} — ${fmtBRL(valor)} — ${dataVencimento}${
+          contaNome ? ` — conta ${contaNome}` : args.contaId ? "" : " — (sem conta)"
+        }`;
+        const draftId = await exec.ctx.runMutation(internal.agente.drafts._criarDraftInternal, {
+          conversaId: exec.conversaId,
+          mensagemId: exec.mensagemId,
+          tipo: "despesa_efetivada",
+          payload: JSON.stringify(payload),
+          resumo,
+          familyId: exec.familyId,
+          criadoPor: exec.userId,
+        });
+        return { ok: true, draftId, resumo, data: { draftId, resumo, status: "pendente_confirmacao" } };
       }
 
       case "propor_despesa": {

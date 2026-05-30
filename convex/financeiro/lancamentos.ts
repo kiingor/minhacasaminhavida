@@ -420,8 +420,10 @@ export const bulkMarcarEfetivado = mutation({
     // Conta que recebe/paga TODOS os itens efetivados nesta chamada.
     // Se undefined, mantém comportamento antigo (sem vincular conta).
     contaId: v.optional(v.id("contas")),
+    // Comprovante (recibo/nota) anexado a TODOS os itens desta efetivação. Opcional.
+    comprovanteStorageId: v.optional(v.id("_storage")),
   },
-  handler: async (ctx, { sessionToken, items, contaId }): Promise<BulkResult> => {
+  handler: async (ctx, { sessionToken, items, contaId, comprovanteStorageId }): Promise<BulkResult> => {
     const user = await getCurrentUser(ctx, sessionToken);
     const result: BulkResult = { sucesso: 0, falhas: [] };
     const hoje = new Date().toISOString().slice(0, 10);
@@ -453,13 +455,17 @@ export const bulkMarcarEfetivado = mutation({
               mes: item.mes,
               dataPagamento: hoje,
               contaId,
+              comprovanteStorageId,
               familyId: user.familyId,
               criadoPor: user._id,
               criadoEm: new Date().toISOString(),
             });
-          } else if (contaId && existente.contaId !== contaId) {
-            // Idempotente, mas se a conta mudou, atualiza
-            await ctx.db.patch(existente._id, { contaId });
+          } else {
+            // Idempotente: se a conta e/ou comprovante mudaram, atualiza.
+            const patch: { contaId?: Id<"contas">; comprovanteStorageId?: Id<"_storage"> } = {};
+            if (contaId && existente.contaId !== contaId) patch.contaId = contaId;
+            if (comprovanteStorageId) patch.comprovanteStorageId = comprovanteStorageId;
+            if (Object.keys(patch).length > 0) await ctx.db.patch(existente._id, patch);
           }
           // Idempotente: se ja existe, conta como sucesso
           result.sucesso++;
@@ -474,12 +480,16 @@ export const bulkMarcarEfetivado = mutation({
               mes: item.mes,
               dataRecebimento: hoje,
               contaId,
+              comprovanteStorageId,
               familyId: user.familyId,
               criadoPor: user._id,
               criadoEm: new Date().toISOString(),
             });
-          } else if (contaId && existente.contaId !== contaId) {
-            await ctx.db.patch(existente._id, { contaId });
+          } else {
+            const patch: { contaId?: Id<"contas">; comprovanteStorageId?: Id<"_storage"> } = {};
+            if (contaId && existente.contaId !== contaId) patch.contaId = contaId;
+            if (comprovanteStorageId) patch.comprovanteStorageId = comprovanteStorageId;
+            if (Object.keys(patch).length > 0) await ctx.db.patch(existente._id, patch);
           }
           result.sucesso++;
         }

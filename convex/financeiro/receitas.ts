@@ -242,6 +242,10 @@ export const desfazerEfetivacao = mutation({
       .withIndex("by_receita_mes", (q) => q.eq("receitaId", id).eq("mes", mes))
       .unique();
     if (existente) {
+      // Apaga o comprovante do storage junto (evita arquivo órfão).
+      if (existente.comprovanteStorageId) {
+        await ctx.storage.delete(existente.comprovanteStorageId);
+      }
       await ctx.db.delete(existente._id);
       return { desfeito: true };
     }
@@ -298,6 +302,15 @@ export const remove = mutation({
     const user = await getCurrentUser(ctx, sessionToken);
     const r = await ctx.db.get(id);
     if (!r || r.familyId !== user.familyId) throw new Error("Não encontrado");
+    // Cascade: remove recebimentos vinculados (e seus comprovantes no storage).
+    const recebimentos = await ctx.db
+      .query("recebimentosReceitas")
+      .withIndex("by_receita_mes", (q) => q.eq("receitaId", id))
+      .collect();
+    for (const rec of recebimentos) {
+      if (rec.comprovanteStorageId) await ctx.storage.delete(rec.comprovanteStorageId);
+      await ctx.db.delete(rec._id);
+    }
     await logExclusao(ctx, {
       entityType: "receita",
       entityId: r._id as string,

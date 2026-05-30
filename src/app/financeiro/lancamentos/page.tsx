@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown, History,
+  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown, History, Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -431,11 +431,16 @@ export default function LancamentosPage() {
       const r = item.tipo === "despesa"
         ? await desfazerDespesa({ sessionToken: token, id: item.id as Id<"despesas">, mes: mesProj })
         : await desfazerReceita({ sessionToken: token, id: item.id as Id<"receitas">, mes: mesProj });
-      // Só dá feedback quando realmente desfez algo (idempotente: 2º toque é no-op silencioso).
       if (r?.desfeito) {
         setFeedback({
           tipo: "sucesso",
           mensagem: `${item.tipo === "despesa" ? "Pagamento" : "Recebimento"} desfeito. Lançamento voltou para pendente.`,
+        });
+      } else {
+        // Não havia o que desfazer neste mês (ex: efetivado em outro mês).
+        setFeedback({
+          tipo: "erro",
+          mensagem: "Nada para desfazer neste mês. Se foi efetivado em outro mês, desfaça pelo extrato da conta (Diagnóstico de saldos).",
         });
       }
     } catch (err) {
@@ -464,7 +469,7 @@ export default function LancamentosPage() {
     setEfetivarDialogAberto(true);
   }
 
-  async function confirmarPagamentoFatura(contaId: Id<"contas"> | null) {
+  async function confirmarPagamentoFatura(contaId: Id<"contas"> | null, comprovanteStorageId?: Id<"_storage">) {
     if (!token || !faturaPagar) return;
     setProcessando(true);
     try {
@@ -483,6 +488,7 @@ export default function LancamentosPage() {
         sessionToken: token,
         items,
         contaId: contaId ?? undefined,
+        comprovanteStorageId,
       });
       mostrarFeedback(r, "lançamento efetivado", "lançamentos efetivados");
     } catch (err) {
@@ -495,7 +501,7 @@ export default function LancamentosPage() {
     }
   }
 
-  async function confirmarEfetivacaoBulk(contaId: Id<"contas"> | null) {
+  async function confirmarEfetivacaoBulk(contaId: Id<"contas"> | null, comprovanteStorageId?: Id<"_storage">) {
     if (!token) return;
     setProcessando(true);
     try {
@@ -516,6 +522,7 @@ export default function LancamentosPage() {
         sessionToken: token,
         items,
         contaId: contaId ?? undefined,
+        comprovanteStorageId,
       });
       mostrarFeedback(r, "efetivado", "efetivados");
       limparSelecao();
@@ -572,6 +579,7 @@ export default function LancamentosPage() {
             <AtalhoCadastro href="/financeiro/categorias" icon={Tag}    label="Categorias" />
             <AtalhoCadastro href="/financeiro/pagadores"  icon={Users}  label="Pagadores" />
             <AtalhoCadastro href="/financeiro/contas"     icon={Wallet} label="Contas" />
+            <AtalhoCadastro href="/financeiro/comprovantes" icon={Receipt} label="Comprovantes" />
             <button
               type="button"
               onClick={() => setHistoricoAberto(true)}

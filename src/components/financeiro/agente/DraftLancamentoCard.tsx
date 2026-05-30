@@ -7,7 +7,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 
 type DraftStatus = "pendente" | "confirmado" | "cancelado";
-type DraftTipo = "despesa" | "receita" | "marcar_paga" | "marcar_recebida";
+type DraftTipo = "despesa" | "receita" | "marcar_paga" | "marcar_recebida" | "despesa_efetivada";
 
 export type Draft = {
   _id: Id<"draftsLancamento">;
@@ -24,7 +24,8 @@ export function DraftLancamentoCard({ draft }: { draft: Draft }) {
   const [loading, setLoading] = useState<"confirmar" | "cancelar" | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  const isDespesa = draft.tipo === "despesa" || draft.tipo === "marcar_paga";
+  const isDespesa =
+    draft.tipo === "despesa" || draft.tipo === "marcar_paga" || draft.tipo === "despesa_efetivada";
   const corBorda =
     draft.status === "confirmado"
       ? "border-emerald-300 bg-emerald-50/60"

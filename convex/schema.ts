@@ -253,6 +253,8 @@ export default defineSchema({
     // Conta da qual saiu o dinheiro NO MOMENTO do pagamento.
     // Se undefined, fallback para despesa.contaId (compat com dados antigos).
     contaId: v.optional(v.id("contas")),
+    // Comprovante (recibo/nota) anexado na efetivação. Imagem ou PDF.
+    comprovanteStorageId: v.optional(v.id("_storage")),
     familyId: v.string(),
     criadoPor: v.id("users"),
     criadoEm: v.string(),
@@ -268,6 +270,8 @@ export default defineSchema({
     // Conta na qual entrou o dinheiro NO MOMENTO do recebimento.
     // Se undefined, fallback para receita.contaId (compat com dados antigos).
     contaId: v.optional(v.id("contas")),
+    // Comprovante (recibo/nota) anexado na efetivação. Imagem ou PDF.
+    comprovanteStorageId: v.optional(v.id("_storage")),
     familyId: v.string(),
     criadoPor: v.id("users"),
     criadoEm: v.string(),
@@ -456,7 +460,9 @@ export default defineSchema({
       v.literal("despesa"),
       v.literal("receita"),
       v.literal("marcar_paga"),
-      v.literal("marcar_recebida")
+      v.literal("marcar_recebida"),
+      // Cria a despesa JÁ efetivada (paga) num passo só — usado pela IA.
+      v.literal("despesa_efetivada")
     ),
     payload: v.string(),
     resumo: v.string(),

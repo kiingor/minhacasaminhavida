@@ -22,6 +22,7 @@ import type * as financeiro_analisarFatura from "../financeiro/analisarFatura.js
 import type * as financeiro_auditLog from "../financeiro/auditLog.js";
 import type * as financeiro_cartoes from "../financeiro/cartoes.js";
 import type * as financeiro_categorias from "../financeiro/categorias.js";
+import type * as financeiro_comprovantes from "../financeiro/comprovantes.js";
 import type * as financeiro_contas from "../financeiro/contas.js";
 import type * as financeiro_dashboardFinanceiro from "../financeiro/dashboardFinanceiro.js";
 import type * as financeiro_despesas from "../financeiro/despesas.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "financeiro/auditLog": typeof financeiro_auditLog;
   "financeiro/cartoes": typeof financeiro_cartoes;
   "financeiro/categorias": typeof financeiro_categorias;
+  "financeiro/comprovantes": typeof financeiro_comprovantes;
   "financeiro/contas": typeof financeiro_contas;
   "financeiro/dashboardFinanceiro": typeof financeiro_dashboardFinanceiro;
   "financeiro/despesas": typeof financeiro_despesas;

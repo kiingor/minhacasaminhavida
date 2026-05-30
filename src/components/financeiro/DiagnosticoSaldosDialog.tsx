@@ -195,10 +195,10 @@ export function DiagnosticoSaldosDialog({ open, onClose }: Props) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-ink-900">
-                  Pago em cartão: {formatBRL(data.resumo.valorPagoEmCartao)}
+                  Pago em cartão sem conta: {formatBRL(data.resumo.valorPagoEmCartao)}
                 </div>
                 <div className="text-xs text-ink-500">
-                  {data.resumo.qtdPagoEmCartao} {data.resumo.qtdPagoEmCartao === 1 ? "lançamento" : "lançamentos"} — não afetam saldo de conta (entram na fatura)
+                  {data.resumo.qtdPagoEmCartao} {data.resumo.qtdPagoEmCartao === 1 ? "lançamento" : "lançamentos"} — pago no cartão mas sem conta vinculada, não afetam saldo. (Fatura paga escolhendo a conta debita normalmente.)
                 </div>
               </div>
             </div>

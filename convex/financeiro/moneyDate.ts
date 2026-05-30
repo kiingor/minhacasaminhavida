@@ -121,38 +121,42 @@ async function calcularSaldoContaInterno(
   const conta = await ctx.db.get(contaId);
   if (!conta || conta.familyId !== familyId) return 0;
 
-  const receitas = await ctx.db
-    .query("receitas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  // Conta EFETIVA (igual a contas.calcularSaldoConta): a conta escolhida na
+  // efetivação (recebimento/pagamento.contaId) sobrescreve a do cadastro.
+  const todosRecebimentos = await ctx.db
+    .query("recebimentosReceitas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const receitasDaConta = receitas.filter((r) => r.contaId === contaId);
 
   let totalReceitas = 0;
-  for (const r of receitasDaConta) {
-    const recs = await ctx.db
-      .query("recebimentosReceitas")
-      .withIndex("by_receita_mes", (q) => q.eq("receitaId", r._id))
-      .collect();
-    for (const rec of recs) {
-      if (rec.dataRecebimento) totalReceitas += rec.valorRecebido ?? r.valor;
+  for (const rec of todosRecebimentos) {
+    if (!rec.dataRecebimento) continue;
+    let contaResolvida = rec.contaId;
+    let valorBase = rec.valorRecebido;
+    if (!contaResolvida || valorBase === undefined) {
+      const r = await ctx.db.get(rec.receitaId);
+      if (!r) continue;
+      contaResolvida = contaResolvida ?? r.contaId;
+      valorBase = valorBase ?? r.valor;
     }
+    if (contaResolvida !== contaId) continue;
+    totalReceitas += valorBase ?? 0;
   }
 
-  const despesas = await ctx.db
-    .query("despesas")
-    .withIndex("by_family_mes", (q) => q.eq("familyId", familyId))
+  const todosPagamentos = await ctx.db
+    .query("pagamentosDespesas")
+    .withIndex("by_familia_mes", (q) => q.eq("familyId", familyId))
     .collect();
-  const despesasDaConta = despesas.filter((d) => d.contaId === contaId && !d.cartao);
 
   let totalDespesas = 0;
-  for (const d of despesasDaConta) {
-    const pags = await ctx.db
-      .query("pagamentosDespesas")
-      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", d._id))
-      .collect();
-    for (const p of pags) {
-      if (p.dataPagamento) totalDespesas += p.valorPago ?? d.valor;
-    }
+  for (const p of todosPagamentos) {
+    if (!p.dataPagamento) continue;
+    const d = await ctx.db.get(p.despesaId);
+    if (!d) continue;
+    // Cartão só debita a conta quando a fatura foi paga com conta escolhida (p.contaId).
+    const contaResolvida = d.cartao ? p.contaId : (p.contaId ?? d.contaId);
+    if (contaResolvida !== contaId) continue;
+    totalDespesas += p.valorPago ?? d.valor;
   }
 
   const transfs = await ctx.db

@@ -192,8 +192,10 @@ async function calcularSaldoConta(
     if (!p.dataPagamento) continue;
     const d = await ctx.db.get(p.despesaId);
     if (!d) continue;
-    if (d.cartao) continue; // cartão não impacta saldo de conta
-    const contaResolvida = p.contaId ?? d.contaId;
+    // Cartão: só debita a conta quando a FATURA foi paga COM uma conta escolhida
+    // (p.contaId, definido ao "Pagar fatura"). Compra no cartão ainda não paga fica
+    // na fatura (sem pagamento) e não conta. Não-cartão: pagamento.contaId ?? cadastro.
+    const contaResolvida = d.cartao ? p.contaId : (p.contaId ?? d.contaId);
     if (contaResolvida !== contaId) continue;
     totalDespesas += p.valorPago ?? d.valor;
   }
@@ -483,13 +485,15 @@ export const diagnostico = query({
       valorSemContaReceitas += valor;
     }
 
-    // Despesas de cartão efetivadas (não impactam saldo de conta — entram em fatura)
+    // Despesas de cartão pagas SEM conta vinculada — essas não impactam saldo de conta.
+    // (Cartão pago COM conta escolhida na fatura já debita a conta normalmente.)
     let valorPagoEmCartao = 0;
     let qtdPagoEmCartao = 0;
     for (const p of todosPagamentos) {
       if (!p.dataPagamento) continue;
       const d = despesaMap.get(p.despesaId as string);
       if (!d || !d.cartao) continue;
+      if (p.contaId) continue; // pago com conta → debita o saldo, não entra aqui
       valorPagoEmCartao += p.valorPago ?? d.valor;
       qtdPagoEmCartao += 1;
     }
@@ -575,8 +579,8 @@ export const extratoConta = query({
       if (mes && p.mes !== mes) continue;
       const d = await ctx.db.get(p.despesaId);
       if (!d) continue;
-      if (d.cartao) continue; // cartão não impacta saldo de conta
-      const contaResolvida = p.contaId ?? d.contaId;
+      // Mesma regra do saldo: cartão só conta quando pago com conta (p.contaId).
+      const contaResolvida = d.cartao ? p.contaId : (p.contaId ?? d.contaId);
       if (contaResolvida !== contaId) continue;
       const valor = p.valorPago ?? d.valor;
       totalSaidas += valor;
@@ -584,7 +588,7 @@ export const extratoConta = query({
         origem: "despesa",
         lancamentoId: p.despesaId as string,
         mes: p.mes,
-        descricao: d.descricao,
+        descricao: d.cartao ? `${d.descricao} · ${d.cartao}` : d.descricao,
         valor,
         sinal: "-",
         data: p.dataPagamento,

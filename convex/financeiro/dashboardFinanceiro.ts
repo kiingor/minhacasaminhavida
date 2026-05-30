@@ -1076,8 +1076,8 @@ async function calcularSaldoContaInterno(
     if (!p.dataPagamento) continue;
     const d = await ctx.db.get(p.despesaId);
     if (!d) continue;
-    if (d.cartao) continue;
-    const contaResolvida = p.contaId ?? d.contaId;
+    // Cartão só debita a conta quando a fatura foi paga com conta escolhida (p.contaId).
+    const contaResolvida = d.cartao ? p.contaId : (p.contaId ?? d.contaId);
     if (contaResolvida !== contaId) continue;
     totalDespesas += p.valorPago ?? d.valor;
   }

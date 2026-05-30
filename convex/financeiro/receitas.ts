@@ -152,8 +152,10 @@ export const create = mutation({
     ),
     mesesSazonais: v.optional(v.array(v.number())),
     observacao: v.optional(v.string()),
+    // Quando true, já registra o recebimento (efetivado) no mês da previsão.
+    jaRecebido: v.optional(v.boolean()),
   },
-  handler: async (ctx, { sessionToken, ...args }) => {
+  handler: async (ctx, { sessionToken, jaRecebido, ...args }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const cat = await ctx.db.get(args.categoriaId);
     if (!cat || cat.familyId !== user.familyId) throw new Error("Categoria inválida");
@@ -168,13 +170,26 @@ export const create = mutation({
       if (!conta || conta.familyId !== user.familyId) throw new Error("Conta inválida");
     }
     validarRecorrenciaReceita(args);
-    return await ctx.db.insert("receitas", {
+    const receitaId = await ctx.db.insert("receitas", {
       ...args,
       recebido: false,
       criadoPor: user._id,
       familyId: user.familyId,
       criadoEm: new Date().toISOString(),
     });
+    // Lançamento "já recebido": cria o registro de recebimento no mês da previsão.
+    if (jaRecebido) {
+      await ctx.db.insert("recebimentosReceitas", {
+        receitaId,
+        mes: args.dataPrevisao.slice(0, 7),
+        dataRecebimento: new Date().toISOString().slice(0, 10),
+        contaId: args.contaId,
+        familyId: user.familyId,
+        criadoPor: user._id,
+        criadoEm: new Date().toISOString(),
+      });
+    }
+    return receitaId;
   },
 });
 

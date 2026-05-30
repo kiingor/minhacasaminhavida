@@ -78,6 +78,7 @@ export function ReceitaForm({ onClose, editData }: Props) {
   const [dataPrevisao, setDataPrevisao] = useState(editData?.dataPrevisao ?? new Date().toISOString().slice(0, 10));
   const [totalParcelas, setTotalParcelas] = useState(editData?.totalParcelas?.toString() ?? "2");
   const [observacao, setObservacao] = useState(editData?.observacao ?? "");
+  const [jaRecebido, setJaRecebido] = useState(false);
 
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>(editData?.periodicidade ?? "mensal");
   const [mesesSazonais, setMesesSazonais] = useState<number[]>(editData?.mesesSazonais ?? []);
@@ -217,6 +218,7 @@ export function ReceitaForm({ onClose, editData }: Props) {
           sessionToken: token,
           ...payloadComum,
           parcelaAtual: tipo === "parcelada" ? 1 : undefined,
+          jaRecebido: tipo === "avulsa" ? jaRecebido : undefined,
         });
       }
       onClose();
@@ -415,6 +417,28 @@ export function ReceitaForm({ onClose, editData }: Props) {
         </div>
 
         <Input label="Observação" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+
+        {/* Lançar já como recebida (apenas avulsa) */}
+        {!isEditing && tipo === "avulsa" && (
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={jaRecebido}
+              onChange={(e) => setJaRecebido(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-success shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-700">Já recebido</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {jaRecebido
+                  ? contaId
+                    ? "Será lançada como recebida e creditada na conta de destino."
+                    : "Será lançada como recebida (sem conta vinculada ao saldo)."
+                  : "Marque para registrar já como efetivada (recebida) neste mês."}
+              </div>
+            </div>
+          </label>
+        )}
 
         {/* Overrides */}
         {isEditing && (

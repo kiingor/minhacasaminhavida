@@ -163,8 +163,10 @@ export const create = mutation({
     ),
     mesesSazonais: v.optional(v.array(v.number())),
     observacao: v.optional(v.string()),
+    // Quando true, já registra o pagamento (efetivado) no mês do vencimento.
+    jaPago: v.optional(v.boolean()),
   },
-  handler: async (ctx, { sessionToken, ...args }) => {
+  handler: async (ctx, { sessionToken, jaPago, ...args }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const cat = await ctx.db.get(args.categoriaId);
     if (!cat || cat.familyId !== user.familyId) throw new Error("Categoria inválida");
@@ -177,13 +179,27 @@ export const create = mutation({
       if (!pessoa || pessoa.familyId !== user.familyId) throw new Error("Pessoa inválida");
     }
     validarRecorrenciaDespesa(args);
-    return await ctx.db.insert("despesas", {
+    const despesaId = await ctx.db.insert("despesas", {
       ...args,
       pago: false,
       criadoPor: user._id,
       familyId: user.familyId,
       criadoEm: new Date().toISOString(),
     });
+    // Lançamento "já pago": cria o registro de pagamento no mês do vencimento.
+    // Não se aplica a compras no cartão — essas entram na fatura.
+    if (jaPago && !args.cartao) {
+      await ctx.db.insert("pagamentosDespesas", {
+        despesaId,
+        mes: args.dataVencimento.slice(0, 7),
+        dataPagamento: new Date().toISOString().slice(0, 10),
+        contaId: args.contaId,
+        familyId: user.familyId,
+        criadoPor: user._id,
+        criadoEm: new Date().toISOString(),
+      });
+    }
+    return despesaId;
   },
 });
 

@@ -81,6 +81,7 @@ export function DespesaForm({ onClose, editData }: Props) {
   const [cartao, setCartao] = useState(editData?.cartao ?? "");
   const [contaId, setContaId] = useState<Id<"contas"> | "">(editData?.contaId ?? "");
   const [observacao, setObservacao] = useState(editData?.observacao ?? "");
+  const [jaPago, setJaPago] = useState(false);
 
   // Recorrência
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>(editData?.periodicidade ?? "mensal");
@@ -225,6 +226,7 @@ export function DespesaForm({ onClose, editData }: Props) {
           sessionToken: token,
           ...payloadComum,
           parcelaAtual: tipo === "parcelada" ? 1 : undefined,
+          jaPago: tipo === "avulsa" && !cartao ? jaPago : undefined,
         });
       }
       onClose();
@@ -442,6 +444,28 @@ export function DespesaForm({ onClose, editData }: Props) {
         </div>
 
         <Input label="Observação" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+
+        {/* Lançar já como paga (apenas avulsa, fora do cartão) */}
+        {!isEditing && tipo === "avulsa" && !cartao && (
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={jaPago}
+              onChange={(e) => setJaPago(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-primary shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-700">Já paguei esta despesa</div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {jaPago
+                  ? contaId
+                    ? "Será lançada como paga e debitada da conta selecionada."
+                    : "Será lançada como paga (sem conta vinculada ao saldo)."
+                  : "Marque para registrar já como efetivada (paga) neste mês."}
+              </div>
+            </div>
+          </label>
+        )}
 
         {/* Overrides do mes (somente em edicao e quando ha overrides) */}
         {isEditing && (

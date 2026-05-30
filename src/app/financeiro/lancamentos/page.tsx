@@ -96,6 +96,8 @@ interface GrupoCartao {
   qtdPendente: number;
   cor?: string;
   bandeira?: string;
+  /** Conta vinculada às despesas pendentes (se todas apontam para a mesma). Pré-seleciona ao pagar a fatura. */
+  contaSugeridaId?: Id<"contas">;
 }
 
 export default function LancamentosPage() {
@@ -192,6 +194,8 @@ export default function LancamentosPage() {
   const removerTransferencia = useMutation(api.financeiro.transferencias.remove);
   const excluirDespesaNoMes = useMutation(api.financeiro.despesas.excluirNoMes);
   const excluirReceitaNoMes = useMutation(api.financeiro.receitas.excluirNoMes);
+  const desfazerDespesa = useMutation(api.financeiro.despesas.desfazerEfetivacao);
+  const desfazerReceita = useMutation(api.financeiro.receitas.desfazerEfetivacao);
 
   const catMap = useMemo(() => new Map((categorias ?? []).map((c) => [c._id as string, c])), [categorias]);
   const contaMap = useMemo(() => new Map((contas ?? []).map((c) => [c._id as string, c])), [contas]);
@@ -313,7 +317,18 @@ export default function LancamentosPage() {
     return Array.from(map.values())
       .map((g) => {
         const info = cartoesMap.get(g.cartao);
-        return { ...g, cor: info?.cor, bandeira: info?.bandeira };
+        // Conta sugerida = conta vinculada às despesas pendentes, se todas concordam.
+        const contasPendentes = new Set<string>();
+        for (const i of g.itens) {
+          if (i.tipo === "despesa" && !i.pago && i.contaId) {
+            contasPendentes.add(i.contaId as string);
+          }
+        }
+        const contaSugeridaId =
+          contasPendentes.size === 1
+            ? (Array.from(contasPendentes)[0] as Id<"contas">)
+            : undefined;
+        return { ...g, cor: info?.cor, bandeira: info?.bandeira, contaSugeridaId };
       })
       .sort((a, b) => b.total - a.total);
   }, [visiveis, cartoes]);
@@ -406,6 +421,25 @@ export default function LancamentosPage() {
       });
     } catch (err) {
       setFeedback({ tipo: "erro", mensagem: err instanceof Error ? err.message : "Erro ao excluir" });
+    }
+  }
+
+  async function desfazerEfetivacao(item: LancamentoItemData) {
+    if (!token || item.tipo === "transferencia") return;
+    try {
+      const mesProj = item._projectedMes;
+      const r = item.tipo === "despesa"
+        ? await desfazerDespesa({ sessionToken: token, id: item.id as Id<"despesas">, mes: mesProj })
+        : await desfazerReceita({ sessionToken: token, id: item.id as Id<"receitas">, mes: mesProj });
+      // Só dá feedback quando realmente desfez algo (idempotente: 2º toque é no-op silencioso).
+      if (r?.desfeito) {
+        setFeedback({
+          tipo: "sucesso",
+          mensagem: `${item.tipo === "despesa" ? "Pagamento" : "Recebimento"} desfeito. Lançamento voltou para pendente.`,
+        });
+      }
+    } catch (err) {
+      setFeedback({ tipo: "erro", mensagem: err instanceof Error ? err.message : "Erro ao desfazer efetivação" });
     }
   }
 
@@ -725,6 +759,7 @@ export default function LancamentosPage() {
                                   onToggleSelecao={() => toggleSelecao(item)}
                                   onEditar={() => editar(item)}
                                   onExcluir={() => setConfirmarExclusaoUmAberto(item)}
+                                  onDesfazerEfetivacao={() => desfazerEfetivacao(item)}
                                   categoria={cat ? { nome: cat.nome, cor: cat.cor, icone: cat.icone } : undefined}
                                   pessoa={pessoa ? {
                                     nome: pessoa.nome, apelido: pessoa.apelido,
@@ -777,6 +812,7 @@ export default function LancamentosPage() {
                               onToggleSelecao={() => toggleSelecao(item)}
                               onEditar={() => editar(item)}
                               onExcluir={() => setConfirmarExclusaoUmAberto(item)}
+                              onDesfazerEfetivacao={() => desfazerEfetivacao(item)}
                               categoria={cat ? { nome: cat.nome, cor: cat.cor, icone: cat.icone } : undefined}
                               conta={conta ? { nome: conta.nome } : undefined}
                               pagador={pag ? { nome: pag.nome, apelido: pag.apelido } : undefined}
@@ -889,6 +925,7 @@ export default function LancamentosPage() {
         quantidade={faturaPagar?.qtdPendente ?? 0}
         valorTotal={faturaPagar?.totalPendente}
         tipo="despesa"
+        contaSugeridaId={faturaPagar?.contaSugeridaId}
       />
 
       {/* Diagnóstico de lançamentos + Histórico de exclusões */}

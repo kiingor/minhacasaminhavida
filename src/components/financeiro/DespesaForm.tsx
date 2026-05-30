@@ -152,7 +152,6 @@ export function DespesaForm({ onClose, editData }: Props) {
       });
       // Auto-selecionar o cartão recém-criado (DespesaForm guarda nome como string)
       setCartao(novoCartaoNome.trim());
-      setContaId(""); // Conta e cartão são mutuamente exclusivos
       setNovoCartaoNome("");
       setShowNovoCartao(false);
     } finally {
@@ -371,11 +370,7 @@ export function DespesaForm({ onClose, editData }: Props) {
           <label className="text-sm font-medium text-slate-700">Conta (opcional)</label>
           <select
             value={contaId}
-            onChange={(e) => {
-              const v = e.target.value as Id<"contas"> | "";
-              setContaId(v);
-              if (v) setCartao("");
-            }}
+            onChange={(e) => setContaId(e.target.value as Id<"contas"> | "")}
             className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
           >
             <option value="">Nenhuma</option>
@@ -389,7 +384,9 @@ export function DespesaForm({ onClose, editData }: Props) {
               ))}
           </select>
           <p className="text-xs text-slate-500 mt-0.5">
-            Selecione para que esta despesa debite o saldo da conta.
+            {cartao
+              ? "Conta que pagará a fatura deste cartão (sugerida ao pagar)."
+              : "Selecione para que esta despesa debite o saldo da conta."}
           </p>
         </div>
 
@@ -402,11 +399,7 @@ export function DespesaForm({ onClose, editData }: Props) {
           </div>
           <select
             value={cartao}
-            onChange={(e) => {
-              const v = e.target.value;
-              setCartao(v);
-              if (v) setContaId("");
-            }}
+            onChange={(e) => setCartao(e.target.value)}
             className="h-10 rounded-lg border border-slate-300 px-3 text-sm"
           >
             <option value="">Nenhum</option>
@@ -414,7 +407,8 @@ export function DespesaForm({ onClose, editData }: Props) {
           </select>
           {cartao && !showNovoCartao && (
             <p className="text-xs text-amber-600 mt-0.5">
-              Despesas no cartão não debitam saldo de conta (entram na fatura).
+              Compras no cartão não debitam saldo na hora — entram na fatura
+              {contaId ? " e serão pagas pela conta selecionada acima." : "."}
             </p>
           )}
           {showNovoCartao && (
@@ -506,7 +500,7 @@ export function DespesaForm({ onClose, editData }: Props) {
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="flex-1" disabled={loading}>{loading ? "Salvando..." : isEditing ? "Salvar" : "Criar"}</Button>
+          <Button type="submit" className="flex-1" disabled={loading || (isEditing && !hidratado)}>{loading ? "Salvando..." : isEditing && !hidratado ? "Carregando..." : isEditing ? "Salvar" : "Criar"}</Button>
         </div>
       </form>
     </Dialog>

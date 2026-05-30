@@ -473,7 +473,7 @@ export function ReceitaForm({ onClose, editData }: Props) {
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="flex-1" disabled={loading}>{loading ? "Salvando..." : isEditing ? "Salvar" : "Criar"}</Button>
+          <Button type="submit" className="flex-1" disabled={loading || (isEditing && !hidratado)}>{loading ? "Salvando..." : isEditing && !hidratado ? "Carregando..." : isEditing ? "Salvar" : "Criar"}</Button>
         </div>
       </form>
     </Dialog>

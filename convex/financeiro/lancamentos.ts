@@ -149,7 +149,9 @@ export const listByMonth = query({
         dataPagamento,
         pago,
         categoriaId: d.categoriaId,
-        contaId: d.contaId,
+        // Conta EFETIVA: quando pago, a conta escolhida no momento da efetivação
+        // (pagamento.contaId) sobrescreve a do cadastro — alinhando lista e saldo.
+        contaId: pagamento?.contaId ?? d.contaId,
         cartao: d.cartao,
         pessoaId: d.pessoaId,
         parcelaAtual: parcelaNoMes,
@@ -206,7 +208,9 @@ export const listByMonth = query({
         dataRecebimento,
         recebido,
         categoriaId: r.categoriaId,
-        contaId: r.contaId,
+        // Conta EFETIVA: quando recebido, a conta escolhida no momento da efetivação
+        // (recebimento.contaId) sobrescreve a do cadastro — alinhando lista e saldo.
+        contaId: rec?.contaId ?? r.contaId,
         pessoaId: r.pessoaId,
         pagadorId: r.pagadorId,
         pagadorNome: r.pagadorNome,

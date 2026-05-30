@@ -81,7 +81,14 @@ export const listByMonth = query({
       if (despesaExcluidaNoMes(d, mes)) continue;
       const origMes = d.dataVencimento.slice(0, 7);
       const pagamento = pagoMap.get(d._id as string);
-      const baseOverride = { pago: !!pagamento, dataPagamento: pagamento?.dataPagamento };
+      // Conta EFETIVA: quando pago, a conta escolhida na efetivação (pagamento.contaId)
+      // sobrescreve a do cadastro — mantém esta lista alinhada com lancamentos.listByMonth
+      // e com o cálculo de saldo em contas.ts.
+      const baseOverride = {
+        pago: !!pagamento,
+        dataPagamento: pagamento?.dataPagamento,
+        contaId: pagamento?.contaId ?? d.contaId,
+      };
       if (d.tipo === "avulsa") {
         if (origMes === mes) {
           const dProj = aplicarOverrideDespesa(d, mes);
@@ -217,6 +224,27 @@ export const togglePago = mutation({
         criadoEm: new Date().toISOString(),
       });
     }
+  },
+});
+
+// Desfaz a efetivação (pagamento) de uma despesa em um mês específico.
+// Delete-only e idempotente: se não houver pagamento, é no-op (seguro contra
+// duplo-toque). Diferente de togglePago, NUNCA cria um pagamento.
+export const desfazerEfetivacao = mutation({
+  args: { sessionToken: v.string(), id: v.id("despesas"), mes: v.string() },
+  handler: async (ctx, { sessionToken, id, mes }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const d = await ctx.db.get(id);
+    if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
+    const existente = await ctx.db
+      .query("pagamentosDespesas")
+      .withIndex("by_despesa_mes", (q) => q.eq("despesaId", id).eq("mes", mes))
+      .unique();
+    if (existente) {
+      await ctx.db.delete(existente._id);
+      return { desfeito: true };
+    }
+    return { desfeito: false };
   },
 });
 

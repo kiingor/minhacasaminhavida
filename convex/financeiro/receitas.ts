@@ -72,7 +72,14 @@ export const listByMonth = query({
       if (receitaExcluidaNoMes(r, mes)) continue;
       const origMes = r.dataPrevisao.slice(0, 7);
       const rec = recMap.get(r._id as string);
-      const baseOverride = { recebido: !!rec, dataRecebimento: rec?.dataRecebimento };
+      // Conta EFETIVA: quando recebido, a conta escolhida na efetivação (recebimento.contaId)
+      // sobrescreve a do cadastro — mantém esta lista alinhada com lancamentos.listByMonth
+      // e com o cálculo de saldo em contas.ts.
+      const baseOverride = {
+        recebido: !!rec,
+        dataRecebimento: rec?.dataRecebimento,
+        contaId: rec?.contaId ?? r.contaId,
+      };
       if (r.tipo === "avulsa") {
         if (origMes === mes) {
           const rProj = aplicarOverrideReceita(r, mes);
@@ -218,6 +225,27 @@ export const toggleRecebido = mutation({
         criadoEm: new Date().toISOString(),
       });
     }
+  },
+});
+
+// Desfaz a efetivação (recebimento) de uma receita em um mês específico.
+// Delete-only e idempotente: se não houver recebimento, é no-op (seguro contra
+// duplo-toque). Diferente de toggleRecebido, NUNCA cria um recebimento.
+export const desfazerEfetivacao = mutation({
+  args: { sessionToken: v.string(), id: v.id("receitas"), mes: v.string() },
+  handler: async (ctx, { sessionToken, id, mes }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const r = await ctx.db.get(id);
+    if (!r || r.familyId !== user.familyId) throw new Error("Não encontrado");
+    const existente = await ctx.db
+      .query("recebimentosReceitas")
+      .withIndex("by_receita_mes", (q) => q.eq("receitaId", id).eq("mes", mes))
+      .unique();
+    if (existente) {
+      await ctx.db.delete(existente._id);
+      return { desfeito: true };
+    }
+    return { desfeito: false };
   },
 });
 

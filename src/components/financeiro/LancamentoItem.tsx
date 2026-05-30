@@ -7,6 +7,7 @@ import {
   Pencil,
   Trash2,
   Check,
+  RotateCcw,
 } from "lucide-react";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
@@ -76,6 +77,8 @@ interface Props {
   onToggleSelecao: () => void;
   onEditar: () => void;
   onExcluir: () => void;
+  /** Desfaz a efetivação. Só é exibido quando o item está efetivado (pago/recebido). */
+  onDesfazerEfetivacao?: () => void;
   categoria?: CategoriaInfo;
   conta?: ContaInfo;
   pagador?: PagadorInfo;
@@ -86,7 +89,7 @@ interface Props {
 }
 
 export function LancamentoItem({
-  item, selecionado, onToggleSelecao, onEditar, onExcluir,
+  item, selecionado, onToggleSelecao, onEditar, onExcluir, onDesfazerEfetivacao,
   categoria, conta, pagador, pessoa, index = 0, ocultarData = false,
 }: Props) {
   const efetivado =
@@ -219,8 +222,18 @@ export function LancamentoItem({
         )}
       </div>
 
-      {/* Ações — só aparecem em hover */}
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Ações — sempre visíveis em touch; escondidas até hover só em desktop (mouse) */}
+      <div className="flex items-center gap-0.5 shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
+        {efetivado && item.tipo !== "transferencia" && onDesfazerEfetivacao && (
+          <button
+            onClick={onDesfazerEfetivacao}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-coral-600"
+            aria-label={`Desfazer ${item.tipo === "despesa" ? "pagamento" : "recebimento"}`}
+            title="Desfazer efetivação"
+          >
+            <RotateCcw size={12} />
+          </button>
+        )}
         <button
           onClick={onEditar}
           className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-ink-700"

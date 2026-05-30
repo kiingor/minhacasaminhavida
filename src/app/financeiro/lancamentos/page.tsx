@@ -1,10 +1,10 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown, History, Receipt,
+  Loader2, CheckCircle2, AlertTriangle, X, Inbox, Tag, Users, Wallet, CreditCard, ChevronDown, History, Receipt, Settings2,
 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -46,22 +46,107 @@ function chaveSelecao(item: LancamentoItemData): SelecaoKey {
   return `${item.tipo}:${item.id}`;
 }
 
-function AtalhoCadastro({
-  href, icon: Icon, label,
-}: {
-  href: string;
-  icon: typeof Tag;
-  label: string;
-}) {
+/** Efetivado = pago (despesa) / recebido (receita) / transferência (concluída).
+ *  Usado pra empurrar o que já saiu/entrou pro fim da lista de cada dia. */
+function itemEfetivado(item: LancamentoItemData): boolean {
+  if (item.tipo === "despesa") return item.pago;
+  if (item.tipo === "receita") return item.recebido;
+  return true;
+}
+
+const ATALHOS_GERENCIAR: Array<{ href: string; icon: typeof Tag; label: string }> = [
+  { href: "/financeiro/categorias",   icon: Tag,     label: "Categorias" },
+  { href: "/financeiro/pagadores",    icon: Users,   label: "Pagadores" },
+  { href: "/financeiro/contas",       icon: Wallet,  label: "Contas" },
+  { href: "/financeiro/comprovantes", icon: Receipt, label: "Comprovantes" },
+];
+
+/**
+ * Dropdown "Gerenciar" — agrupa os atalhos de cadastro (Categorias, Pagadores,
+ * Contas, Comprovantes) + o utilitário Histórico num único menu rotulado.
+ * Substitui a fileira de ícones sem legenda que poluía o header no mobile.
+ * Espelha o padrão do NovoLancamentoDropdown (fecha no clique fora/Escape,
+ * abre pra cima no mobile).
+ */
+function GerenciarDropdown({ onHistorico }: { onHistorico: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setAberto(false); };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [aberto]);
+
   return (
-    <Link
-      href={href}
-      aria-label={`Gerenciar ${label}`}
-      title={`Gerenciar ${label}`}
-      className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-white border border-cream-200 text-ink-500 hover:text-coral-600 hover:border-coral-300 hover:bg-cream-50 transition-colors shadow-soft"
-    >
-      <Icon size={16} />
-    </Link>
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="inline-flex items-center gap-2 h-11 px-4 rounded-full bg-white border border-cream-200 text-ink-700 text-sm font-medium hover:text-coral-600 hover:border-coral-300 hover:bg-cream-50 shadow-soft transition-colors"
+        aria-label="Gerenciar cadastros"
+        aria-expanded={aberto}
+        aria-haspopup="menu"
+      >
+        <Settings2 size={16} />
+        <span>Gerenciar</span>
+        <ChevronDown size={13} className={`transition-transform ${aberto ? "rotate-180" : ""}`} />
+      </button>
+
+      <AnimatePresence>
+        {aberto && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+            transition={{ duration: 0.12 }}
+            className="absolute left-0 mt-2 w-56 rounded-2xl border border-cream-200 bg-white shadow-card overflow-hidden z-30 max-md:bottom-full max-md:top-auto max-md:mt-0 max-md:mb-2"
+          >
+            {ATALHOS_GERENCIAR.map((a) => (
+              <Link
+                key={a.href}
+                role="menuitem"
+                href={a.href}
+                onClick={() => setAberto(false)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-cream-50 text-left transition-colors"
+              >
+                <div className="w-9 h-9 rounded-full bg-cream-100 text-ink-700 flex items-center justify-center shrink-0">
+                  <a.icon size={16} />
+                </div>
+                <span className="text-sm font-semibold text-ink-900">{a.label}</span>
+              </Link>
+            ))}
+
+            <hr className="border-cream-100 mx-3 my-1" />
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setAberto(false); onHistorico(); }}
+              aria-label="Histórico de exclusões e diagnóstico"
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-cream-50 text-left transition-colors"
+            >
+              <div className="w-9 h-9 rounded-full bg-cream-100 text-ink-500 flex items-center justify-center shrink-0">
+                <History size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink-700">Histórico</div>
+                <div className="text-[11px] text-ink-400">Exclusões e diagnóstico</div>
+              </div>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -283,6 +368,10 @@ export default function LancamentosPage() {
       g.itens.push(item);
       if (item.tipo === "receita") g.totalEntradas += item.valor;
       else if (item.tipo === "despesa") g.totalSaidas += item.valor;
+    }
+    // Dentro de cada dia: pendentes primeiro, efetivados (pagos/recebidos) pro fim.
+    for (const g of map.values()) {
+      g.itens.sort((a, b) => Number(itemEfetivado(a)) - Number(itemEfetivado(b)));
     }
     return Array.from(map.values()).sort((a, b) => b.data.localeCompare(a.data));
   }, [visiveisNaoCartao]);
@@ -576,19 +665,7 @@ export default function LancamentosPage() {
         subtitle="Despesas, receitas e transferências em um só lugar"
         actions={
           <>
-            <AtalhoCadastro href="/financeiro/categorias" icon={Tag}    label="Categorias" />
-            <AtalhoCadastro href="/financeiro/pagadores"  icon={Users}  label="Pagadores" />
-            <AtalhoCadastro href="/financeiro/contas"     icon={Wallet} label="Contas" />
-            <AtalhoCadastro href="/financeiro/comprovantes" icon={Receipt} label="Comprovantes" />
-            <button
-              type="button"
-              onClick={() => setHistoricoAberto(true)}
-              aria-label="Histórico de exclusões"
-              title="Diagnóstico e histórico de exclusões"
-              className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-white border border-cream-200 text-ink-500 hover:text-coral-600 hover:border-coral-300 hover:bg-cream-50 transition-colors shadow-soft"
-            >
-              <History size={16} />
-            </button>
+            <GerenciarDropdown onHistorico={() => setHistoricoAberto(true)} />
             <span className="hidden md:inline-block h-6 w-px bg-cream-200 mx-1" />
             <MonthSelector mes={mes} onChange={setMes} />
             <NovoLancamentoDropdown onSelecionar={(t) => setTipoNovo(t)} />

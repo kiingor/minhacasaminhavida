@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Wallet, ListChecks, Users, LogOut, Settings, ChevronDown, Briefcase, MessageSquare, CalendarClock } from "lucide-react";
+import { Home, Wallet, ListChecks, Users, LogOut, Settings, ChevronDown, Briefcase, MessageSquare, CalendarClock, Search } from "lucide-react";
 import { useMutation } from "convex/react";
 import { useEffect, useState, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils";
 import { NotificacoesBell } from "@/components/notificacoes/NotificacoesBell";
 import { Logo } from "@/components/ui/logo";
 import { AgenteFAB } from "@/components/financeiro/agente/AgenteFAB";
+import { CommandPalette } from "@/components/layout/CommandPalette";
+
+function abrirBusca() {
+  window.dispatchEvent(new Event("open-command-palette"));
+}
 
 const navFamilia = [
   { href: "/",             label: "Início",   icon: Home },
@@ -123,6 +128,15 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            <button
+              onClick={abrirBusca}
+              className="hidden lg:flex items-center gap-2 h-10 pl-3 pr-2 rounded-full bg-white border border-cream-200 text-ink-400 hover:border-cream-300 hover:text-ink-600 transition-colors text-sm"
+              aria-label="Buscar (Ctrl+K)"
+            >
+              <Search size={15} />
+              <span>Buscar...</span>
+              <span className="ml-1 text-[10px] font-mono bg-cream-100 text-ink-400 rounded px-1.5 py-0.5">Ctrl K</span>
+            </button>
             {!isConsultor && <NotificacoesBell />}
             {session && <UserMenu name={session.name} onLogout={handleLogout} />}
           </div>
@@ -137,6 +151,13 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
             <span className="font-display font-bold text-sm text-ink-900">Minha Casa</span>
           </Link>
           <div className="flex items-center gap-2">
+            <button
+              onClick={abrirBusca}
+              className="w-9 h-9 rounded-full bg-white border border-cream-200 flex items-center justify-center text-ink-500 hover:text-ink-800"
+              aria-label="Buscar"
+            >
+              <Search size={16} />
+            </button>
             {!isConsultor && <NotificacoesBell />}
             {session && <UserMenu name={session.name} onLogout={handleLogout} />}
           </div>
@@ -172,6 +193,9 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
 
       {/* FAB do Agente IA (apenas família) */}
       {!isConsultor && <AgenteFAB />}
+
+      {/* Command palette global (Ctrl+K) */}
+      <CommandPalette isConsultor={isConsultor} />
     </div>
   );
 }

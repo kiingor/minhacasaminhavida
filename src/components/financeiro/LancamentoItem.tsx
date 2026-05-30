@@ -1,4 +1,6 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
   ArrowDownRight,
@@ -8,6 +10,7 @@ import {
   Trash2,
   Check,
   RotateCcw,
+  MoreVertical,
 } from "lucide-react";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
@@ -97,6 +100,15 @@ export function LancamentoItem({
     item.tipo === "receita" ? item.recebido : true;
 
   const sinal = item.tipo === "receita" ? "+" : item.tipo === "despesa" ? "-" : "";
+
+  // Cor do valor por tipo: entrada (receita) verde, saída (despesa) vermelho,
+  // transferência neutra. Efetivado usa um tom mais suave, mantendo a cor.
+  const valorColor =
+    item.tipo === "receita"
+      ? efetivado ? "text-emerald-400" : "text-emerald-600"
+      : item.tipo === "despesa"
+      ? efetivado ? "text-rose-300" : "text-rose-600"
+      : "text-ink-700";
 
   const IconCat = iconeDaCategoria(categoria?.icone);
 
@@ -209,12 +221,7 @@ export function LancamentoItem({
 
       {/* Valor */}
       <div className="flex flex-col items-end shrink-0">
-        <span
-          className={cn(
-            "font-mono font-bold text-[13px] tabular-nums",
-            efetivado ? "text-ink-400" : "text-ink-900",
-          )}
-        >
+        <span className={cn("font-mono font-bold text-[13px] tabular-nums", valorColor)}>
           {sinal}{formatBRL(item.valor)}
         </span>
         {item.tipo !== "transferencia" && (
@@ -222,34 +229,116 @@ export function LancamentoItem({
         )}
       </div>
 
-      {/* Ações — sempre visíveis em touch; escondidas até hover só em desktop (mouse) */}
-      <div className="flex items-center gap-0.5 shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
-        {efetivado && item.tipo !== "transferencia" && onDesfazerEfetivacao && (
-          <button
-            onClick={onDesfazerEfetivacao}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-coral-600"
-            aria-label={`Desfazer ${item.tipo === "despesa" ? "pagamento" : "recebimento"}`}
-            title="Desfazer efetivação"
-          >
-            <RotateCcw size={12} />
-          </button>
-        )}
-        <button
-          onClick={onEditar}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-ink-700"
-          aria-label="Editar lançamento"
-        >
-          <Pencil size={12} />
-        </button>
-        <button
-          onClick={onExcluir}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-ink-900"
-          aria-label="Excluir lançamento"
-        >
-          <Trash2 size={12} />
-        </button>
-      </div>
+      {/* Ações — menu com rótulos (Editar / Desfazer / Excluir) */}
+      <AcoesMenu
+        mostrarDesfazer={efetivado && item.tipo !== "transferencia" && !!onDesfazerEfetivacao}
+        tipoLabel={item.tipo === "despesa" ? "pagamento" : "recebimento"}
+        onEditar={onEditar}
+        onExcluir={onExcluir}
+        onDesfazer={onDesfazerEfetivacao}
+      />
     </motion.li>
+  );
+}
+
+function AcoesMenu({
+  mostrarDesfazer, tipoLabel, onEditar, onExcluir, onDesfazer,
+}: {
+  mostrarDesfazer: boolean;
+  tipoLabel: string;
+  onEditar: () => void;
+  onExcluir: () => void;
+  onDesfazer?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [montado, setMontado] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => setMontado(true), []);
+
+  function abrir() {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (btnRef.current && btnRef.current.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onScroll = () => setOpen(false);
+    window.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onEsc);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onEsc);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  function acao(fn?: () => void) {
+    setOpen(false);
+    fn?.();
+  }
+
+  return (
+    <div
+      className="shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity"
+      style={open ? { opacity: 1 } : undefined}
+    >
+      <button
+        ref={btnRef}
+        onClick={() => (open ? setOpen(false) : abrir())}
+        className="w-7 h-7 rounded-full flex items-center justify-center text-ink-400 hover:bg-cream-100 hover:text-ink-700"
+        aria-label="Mais ações"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <MoreVertical size={16} />
+      </button>
+      {montado && open && pos && createPortal(
+        <div
+          role="menu"
+          style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 70 }}
+          className="w-48 rounded-2xl bg-white shadow-card border border-cream-200 p-1"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <MenuItem icon={Pencil} label="Editar" onClick={() => acao(onEditar)} />
+          {mostrarDesfazer && (
+            <MenuItem icon={RotateCcw} label={`Desfazer ${tipoLabel}`} onClick={() => acao(onDesfazer)} />
+          )}
+          <MenuItem icon={Trash2} label="Excluir" tone="danger" onClick={() => acao(onExcluir)} />
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon: Icon, label, onClick, tone = "normal",
+}: {
+  icon: typeof Pencil;
+  label: string;
+  onClick: () => void;
+  tone?: "normal" | "danger";
+}) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-colors",
+        tone === "danger" ? "text-rose-600 hover:bg-rose-50" : "text-ink-700 hover:bg-cream-100",
+      )}
+    >
+      <Icon size={15} /> {label}
+    </button>
   );
 }
 

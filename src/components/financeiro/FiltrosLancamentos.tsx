@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
+import { Search, SlidersHorizontal, X, ArrowDownRight, ArrowUpRight, ArrowLeftRight, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 
@@ -30,11 +30,16 @@ interface Props {
   pagadores: PagadorOpcao[];
 }
 
-const TIPO_PILLS: Array<{ value: FiltroTipo; label: string }> = [
-  { value: "todos", label: "Tudo" },
-  { value: "despesa", label: "Saídas" },
-  { value: "receita", label: "Entradas" },
-  { value: "transferencia", label: "Transf." },
+const TIPO_PILLS: Array<{
+  value: FiltroTipo;
+  label: string;
+  icon: typeof LayoutGrid;
+  iconColor: string;
+}> = [
+  { value: "todos", label: "Tudo", icon: LayoutGrid, iconColor: "text-ink-400" },
+  { value: "despesa", label: "Saídas", icon: ArrowDownRight, iconColor: "text-rose-500" },
+  { value: "receita", label: "Entradas", icon: ArrowUpRight, iconColor: "text-emerald-500" },
+  { value: "transferencia", label: "Transf.", icon: ArrowLeftRight, iconColor: "text-ink-400" },
 ];
 
 const STATUS_PILLS: Array<{ value: FiltroStatus; label: string }> = [
@@ -59,12 +64,14 @@ export function FiltrosLancamentos(props: Props) {
   const avancadosAtivos =
     (filtroContaId ? 1 : 0) +
     (filtroCategoriaId ? 1 : 0) +
-    (filtroPagadorId ? 1 : 0);
+    (filtroPagadorId ? 1 : 0) +
+    (filtroStatus !== "todos" ? 1 : 0);
 
   const limpar = () => {
     onFiltroContaIdChange("");
     onFiltroCategoriaIdChange("");
     onFiltroPagadorIdChange("");
+    onFiltroStatusChange("todos");
   };
 
   const categoriasFiltradas = categorias.filter((c) => {
@@ -80,47 +87,66 @@ export function FiltrosLancamentos(props: Props) {
   return (
     <>
       <div className="space-y-3">
-        {/* Linha 1: busca grande + botão filtros */}
-        <div className="flex gap-2 items-stretch">
+        {/* Linha única: busca + Tipo + filtros avançados */}
+        <div className="flex gap-2 items-center">
           <div className="relative flex-1 min-w-0">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
             <input
               type="text"
               value={busca}
               onChange={(e) => onBuscaChange(e.target.value)}
-              placeholder="Buscar por descrição, categoria, conta..."
-              className="w-full h-11 pl-11 pr-4 rounded-full border border-cream-200 bg-white text-sm text-ink-900 placeholder:text-ink-300 focus:outline-none focus:ring-4 focus:ring-coral-100 focus:border-coral-400 transition-all"
+              placeholder="Buscar..."
+              className="w-full h-11 pl-10 pr-3 rounded-full border border-cream-200 bg-white text-sm text-ink-900 placeholder:text-ink-300 focus:outline-none focus:ring-4 focus:ring-coral-100 focus:border-coral-400 transition-all"
               aria-label="Buscar lançamentos"
             />
           </div>
 
+          {/* Tipo: ícones no mobile, ícone+texto no desktop */}
+          <div className="inline-flex items-center gap-0.5 bg-cream-100 rounded-full p-1 shrink-0">
+            {TIPO_PILLS.map((o) => {
+              const active = o.value === filtroTipo;
+              const Icon = o.icon;
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => onFiltroTipoChange(o.value)}
+                  className={cn(
+                    "h-9 px-2.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors",
+                    active ? "bg-ink-900 text-white shadow-soft" : "text-ink-500 hover:text-ink-900",
+                  )}
+                  aria-label={o.label}
+                  aria-pressed={active}
+                  title={o.label}
+                >
+                  <Icon size={14} className={active ? "" : o.iconColor} />
+                  <span className="hidden md:inline">{o.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Filtros avançados (Status, conta, categoria, pagador) */}
           <button
             onClick={() => setDrawerAberto(true)}
             className={cn(
-              "inline-flex items-center gap-2 px-4 h-11 rounded-full border text-sm font-medium transition-colors relative shrink-0",
+              "inline-flex items-center gap-2 px-3 h-11 rounded-full border text-sm font-medium transition-colors relative shrink-0",
               avancadosAtivos > 0
                 ? "bg-ink-900 text-white border-ink-900 hover:bg-ink-800"
                 : "bg-white border-cream-200 text-ink-700 hover:bg-cream-50",
             )}
             aria-label="Abrir filtros avançados"
           >
-            <SlidersHorizontal size={14} />
-            <span className="hidden sm:inline">Filtros</span>
+            <SlidersHorizontal size={15} />
+            <span className="hidden lg:inline">Filtros</span>
             {avancadosAtivos > 0 && (
-              <span className="bg-coral-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 inline-flex items-center justify-center">
+              <span className="bg-coral-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center">
                 {avancadosAtivos}
               </span>
             )}
           </button>
         </div>
 
-        {/* Linha 2: Tipo + Status — segmented controls homogêneos */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented label="Tipo" options={TIPO_PILLS} value={filtroTipo} onChange={onFiltroTipoChange} />
-          <Segmented label="Status" options={STATUS_PILLS} value={filtroStatus} onChange={onFiltroStatusChange} />
-        </div>
-
-        {/* Linha 3: Chips de filtros avançados ativos */}
+        {/* Chips de filtros avançados ativos */}
         {avancadosAtivos > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             {contaSelecionada && (
@@ -175,6 +201,25 @@ export function FiltrosLancamentos(props: Props) {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-ink-500 mb-1.5 block">Status</label>
+                  <div className="inline-flex items-center gap-1 bg-cream-100 rounded-full p-1 w-full">
+                    {STATUS_PILLS.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => onFiltroStatusChange(o.value)}
+                        className={cn(
+                          "flex-1 h-9 rounded-full text-xs font-semibold transition-colors",
+                          o.value === filtroStatus ? "bg-ink-900 text-white shadow-soft" : "text-ink-500 hover:text-ink-900",
+                        )}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <SearchableField
                   label="Conta"
                   value={filtroContaId}

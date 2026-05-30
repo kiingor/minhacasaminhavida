@@ -93,28 +93,47 @@ export const remove = mutation({
     const conta = await ctx.db.get(id);
     if (!conta || conta.familyId !== user.familyId) throw new Error("Conta não encontrada");
 
-    const todasDespesas = await ctx.db
-      .query("despesas")
-      .withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId))
-      .collect();
-    if (todasDespesas.some((d) => d.contaId === id)) {
-      throw new Error("Esta conta tem lançamentos registrados e não pode ser excluída. Você pode desativá-la em vez disso.");
-    }
+    // DESVINCULA tudo que aponta para a conta (em vez de bloquear a exclusão).
+    // Campos opcionais (contaId em despesas/receitas/pagamentos/recebimentos) viram undefined.
+    const [despesas, receitas, pagamentos, recebimentos, transfs, historicos] = await Promise.all([
+      ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("receitas").withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("pagamentosDespesas").withIndex("by_familia_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("recebimentosReceitas").withIndex("by_familia_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("transferencias").withIndex("by_family_data", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("historicoSaldoManual").withIndex("by_family_data", (q) => q.eq("familyId", user.familyId)).collect(),
+    ]);
 
-    const todasReceitas = await ctx.db
-      .query("receitas")
-      .withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId))
-      .collect();
-    if (todasReceitas.some((r) => r.contaId === id)) {
-      throw new Error("Esta conta tem lançamentos registrados e não pode ser excluída. Você pode desativá-la em vez disso.");
+    for (const d of despesas) {
+      if (d.contaId === id) await ctx.db.patch(d._id, { contaId: undefined });
     }
-
-    const transfs = await ctx.db
-      .query("transferencias")
-      .withIndex("by_family_data", (q) => q.eq("familyId", user.familyId))
-      .collect();
-    if (transfs.some((t) => t.contaOrigemId === id || t.contaDestinoId === id)) {
-      throw new Error("Esta conta tem transferências registradas e não pode ser excluída. Você pode desativá-la em vez disso.");
+    for (const r of receitas) {
+      if (r.contaId === id) await ctx.db.patch(r._id, { contaId: undefined });
+    }
+    for (const p of pagamentos) {
+      if (p.contaId === id) await ctx.db.patch(p._id, { contaId: undefined });
+    }
+    for (const rec of recebimentos) {
+      if (rec.contaId === id) await ctx.db.patch(rec._id, { contaId: undefined });
+    }
+    // Transferências têm conta origem/destino OBRIGATÓRIAS — não dá pra desvincular,
+    // então removemos as que envolvem esta conta (com auditoria).
+    for (const t of transfs) {
+      if (t.contaOrigemId === id || t.contaDestinoId === id) {
+        await logExclusao(ctx, {
+          entityType: "transferencia",
+          entityId: t._id as string,
+          entityData: t,
+          mutationCalled: "contas.remove (cascade transferência)",
+          familyId: user.familyId,
+          userId: user._id,
+        });
+        await ctx.db.delete(t._id);
+      }
+    }
+    // Histórico de saldo manual (contaId obrigatório) — remove os da conta.
+    for (const h of historicos) {
+      if (h.contaId === id) await ctx.db.delete(h._id);
     }
 
     await logExclusao(ctx, {

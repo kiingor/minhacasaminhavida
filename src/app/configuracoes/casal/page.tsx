@@ -1,7 +1,8 @@
 "use client";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { UserPlus, Shield, Mail, UserCircle2, Info } from "lucide-react";
+import { UserPlus, Shield, Mail, UserCircle2, Info, Copy, Check } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,20 @@ export default function ConfigCasalPage() {
     api.pessoas.perfilCasal,
     token ? { sessionToken: token } : "skip"
   );
+  const familia = useQuery(api.auth.meuConvite, token ? { token } : "skip");
+  const codigo = familia?.conviteCode ?? familia?.familyId ?? "";
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiarCodigo() {
+    if (!codigo) return;
+    try {
+      await navigator.clipboard.writeText(codigo);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {
+      /* clipboard pode falhar em contextos não-seguros — ignora */
+    }
+  }
 
   return (
     <motion.div
@@ -134,18 +149,28 @@ export default function ConfigCasalPage() {
       >
         <h2 className="font-display font-bold text-lg flex items-center gap-2">
           <UserPlus size={20} className="text-primary" />
-          Convidar novo perfil
+          Convidar parceiro(a)
         </h2>
         <p className="text-sm text-slate-500">
-          Convide o(a) parceiro(a) para acessar o mesmo núcleo familiar com login próprio.
+          Compartilhe o <b>código da família</b> abaixo. O parceiro cria o login próprio dele
+          e entra no mesmo núcleo familiar.
         </p>
-        <Button variant="outline" disabled>
-          Em breve
-        </Button>
-        <p className="text-xs text-slate-400">
-          Por enquanto, novos perfis devem ser criados via tela de cadastro usando o
-          código de família.
-        </p>
+
+        <div className="flex items-center gap-2">
+          <div className="flex-1 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 font-mono text-lg font-bold tracking-[0.2em] text-slate-800 text-center select-all">
+            {familia === undefined ? "…" : codigo || "—"}
+          </div>
+          <Button variant="outline" onClick={copiarCodigo} disabled={!codigo}>
+            {copiado ? <Check size={16} /> : <Copy size={16} />}
+            {copiado ? "Copiado" : "Copiar"}
+          </Button>
+        </div>
+
+        <ol className="text-xs text-slate-500 list-decimal list-inside space-y-0.5 pt-1">
+          <li>O parceiro abre a tela de <b>cadastro</b> do app.</li>
+          <li>Escolhe <b>&quot;Entrar em família existente&quot;</b>.</li>
+          <li>Cola este código e cria o login dele.</li>
+        </ol>
       </motion.div>
 
       {/* Sobre permissoes */}

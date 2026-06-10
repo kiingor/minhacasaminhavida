@@ -2,11 +2,18 @@ import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
 import { getCurrentUser, logExclusao } from "../_helpers";
 import { Id } from "../_generated/dataModel";
+import { ocorrenciasCartaoNaCompetencia, criarResolvedorCiclo } from "./faturas";
 
 function monthDiff(from: string, to: string): number {
   const [fy, fm] = from.split("-").map(Number);
   const [ty, tm] = to.split("-").map(Number);
   return (ty - fy) * 12 + (tm - fm);
+}
+
+function shiftMes(mes: string, delta: number): string {
+  const [y, m] = mes.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function fixaInMes(
@@ -92,7 +99,8 @@ export const listByMonth = query({
   handler: async (ctx, { sessionToken, mes }): Promise<LancamentoItem[]> => {
     const user = await getCurrentUser(ctx, sessionToken);
 
-    const [despesasAll, receitasAll, transferenciasMes, pagamentos, recebimentos] = await Promise.all([
+    const mesAnterior = shiftMes(mes, -1);
+    const [despesasAll, receitasAll, transferenciasMes, pagamentos, pagamentosAnt, recebimentos, cartoes] = await Promise.all([
       ctx.db
         .query("despesas")
         .withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId))
@@ -111,46 +119,56 @@ export const listByMonth = query({
         .query("pagamentosDespesas")
         .withIndex("by_familia_mes", (q) => q.eq("familyId", user.familyId).eq("mes", mes))
         .collect(),
+      // Mês anterior: necessário p/ ocorrências de cartão-com-ciclo cuja compra (após
+      // o fechamento do mês anterior) tem competência neste mês mas pagamento no mês anterior.
+      ctx.db
+        .query("pagamentosDespesas")
+        .withIndex("by_familia_mes", (q) => q.eq("familyId", user.familyId).eq("mes", mesAnterior))
+        .collect(),
       ctx.db
         .query("recebimentosReceitas")
         .withIndex("by_familia_mes", (q) => q.eq("familyId", user.familyId).eq("mes", mes))
         .collect(),
+      ctx.db
+        .query("cartoes")
+        .withIndex("by_family", (q) => q.eq("familyId", user.familyId))
+        .collect(),
     ]);
 
-    const pagoMap = new Map(pagamentos.map((p) => [p.despesaId as string, p]));
+    // Pagamentos chaveados por despesaId:mesCalendario (cobre mes e mes-1).
+    const pagoMap = new Map(
+      [...pagamentos, ...pagamentosAnt].map((p) => [`${p.despesaId as string}:${p.mes}`, p])
+    );
     const recMap = new Map(recebimentos.map((r) => [r.receitaId as string, r]));
+    const fechamentoDe = criarResolvedorCiclo(cartoes);
 
     const result: LancamentoItem[] = [];
 
-    // ==== DESPESAS (com projecao virtual) ====
-    for (const d of despesasAll) {
-      const origMes = d.dataVencimento.slice(0, 7);
-      const pagamento = pagoMap.get(d._id as string);
-      const pago = !!pagamento;
-      const dataPagamento = pagamento?.dataPagamento;
-
-      const ov = (d.overrides ?? []).find((o) => o.mes === mes);
-      // Despesa excluída especificamente neste mês → pula projeção
-      if (ov?.excluida) continue;
+    // Constrói o item de despesa p/ um mês-calendário específico (chave de
+    // valor/override/pagamento). `mesVista` é o mês em que ele aparece na lista.
+    const buildDespesaItem = (
+      d: typeof despesasAll[number],
+      mesCalendario: string,
+      parcelaNoMes?: number
+    ): LancamentoDespesa | null => {
+      const ov = (d.overrides ?? []).find((o) => o.mes === mesCalendario);
+      if (ov?.excluida) return null;
       const valorEf = ov?.valor ?? d.valor;
       const descEf = ov?.descricao ?? d.descricao;
-      const dataBaseEf = ov?.dataVencimento ?? d.dataVencimento;
-
-      const buildItem = (
-        dataVenc: string,
-        parcelaNoMes?: number
-      ): LancamentoDespesa => ({
+      const dia = (ov?.dataVencimento ?? d.dataVencimento).slice(8, 10);
+      const dataVenc =
+        d.tipo === "avulsa" ? (ov?.dataVencimento ?? d.dataVencimento) : `${mesCalendario}-${dia}`;
+      const pagamento = pagoMap.get(`${d._id as string}:${mesCalendario}`);
+      return {
         tipo: "despesa",
         id: d._id,
         descricao: descEf,
         valor: valorEf,
         dataRef: dataVenc,
         dataVencimento: dataVenc,
-        dataPagamento,
-        pago,
+        dataPagamento: pagamento?.dataPagamento,
+        pago: !!pagamento,
         categoriaId: d.categoriaId,
-        // Conta EFETIVA: quando pago, a conta escolhida no momento da efetivação
-        // (pagamento.contaId) sobrescreve a do cadastro — alinhando lista e saldo.
         contaId: pagamento?.contaId ?? d.contaId,
         cartao: d.cartao,
         pessoaId: d.pessoaId,
@@ -159,15 +177,38 @@ export const listByMonth = query({
         recorrente: d.recorrente,
         ehFixa: d.tipo === "fixa",
         tipoOriginal: d.tipo,
-        _projectedMes: mes,
-      });
+        _projectedMes: mesCalendario,
+      };
+    };
+
+    // ==== DESPESAS (com projecao virtual) ====
+    for (const d of despesasAll) {
+      const F = d.cartao ? fechamentoDe(d) : null;
+
+      // Cartão COM ciclo: agrupa por COMPETÊNCIA (item aparece no mês de
+      // competência; valor/override/pagamento seguem pelo mês-calendário).
+      if (F != null) {
+        for (const occ of ocorrenciasCartaoNaCompetencia(d, mes, F)) {
+          const item = buildDespesaItem(d, occ.mesCalendario, occ.parcelaAtual);
+          if (item) result.push(item);
+        }
+        continue;
+      }
+
+      // Demais despesas (sem cartão ou cartão sem ciclo): mês-calendário (inalterado).
+      const origMes = d.dataVencimento.slice(0, 7);
+      const ov = (d.overrides ?? []).find((o) => o.mes === mes);
+      if (ov?.excluida) continue;
 
       if (d.tipo === "avulsa") {
-        if (origMes === mes) result.push(buildItem(dataBaseEf));
+        if (origMes === mes) {
+          const item = buildDespesaItem(d, mes);
+          if (item) result.push(item);
+        }
       } else if (d.tipo === "fixa") {
         if (fixaInMes(d, mes, "dataVencimento")) {
-          const dia = dataBaseEf.slice(8, 10);
-          result.push(buildItem(`${mes}-${dia}`));
+          const item = buildDespesaItem(d, mes);
+          if (item) result.push(item);
         }
       } else if (d.tipo === "parcelada") {
         const totalParcelas = d.totalParcelas ?? 1;
@@ -175,8 +216,8 @@ export const listByMonth = query({
         const offset = monthDiff(origMes, mes);
         const parcelaNoMes = parcelaInicial + offset;
         if (offset >= 0 && parcelaNoMes <= totalParcelas) {
-          const dia = dataBaseEf.slice(8, 10);
-          result.push(buildItem(`${mes}-${dia}`, parcelaNoMes));
+          const item = buildDespesaItem(d, mes, parcelaNoMes);
+          if (item) result.push(item);
         }
       }
     }

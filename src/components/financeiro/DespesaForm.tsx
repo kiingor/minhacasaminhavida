@@ -29,6 +29,7 @@ interface EditData {
   pessoaId?: Id<"pessoas">;
   contaId?: Id<"contas">;
   dataVencimento: string;
+  dataCompra?: string;
   totalParcelas?: number;
   parcelaAtual?: number;
   cartao?: string;
@@ -77,6 +78,7 @@ export function DespesaForm({ onClose, editData }: Props) {
   const [categoriaId, setCategoriaId] = useState<Id<"categorias"> | "">(editData?.categoriaId ?? "");
   const [pessoaId, setPessoaId] = useState<Id<"pessoas"> | "">(editData?.pessoaId ?? "");
   const [dataVencimento, setDataVencimento] = useState(editData?.dataVencimento ?? new Date().toISOString().slice(0, 10));
+  const [dataCompra, setDataCompra] = useState(editData?.dataCompra ?? "");
   const [totalParcelas, setTotalParcelas] = useState(editData?.totalParcelas?.toString() ?? "2");
   const [cartao, setCartao] = useState(editData?.cartao ?? "");
   const [contaId, setContaId] = useState<Id<"contas"> | "">(editData?.contaId ?? "");
@@ -102,6 +104,7 @@ export function DespesaForm({ onClose, editData }: Props) {
     setCategoriaId(despesaRaw.categoriaId);
     setPessoaId(despesaRaw.pessoaId ?? "");
     setDataVencimento(despesaRaw.dataVencimento);
+    setDataCompra(despesaRaw.dataCompra ?? "");
     setTotalParcelas(despesaRaw.totalParcelas?.toString() ?? "2");
     setCartao(despesaRaw.cartao ?? "");
     setContaId(despesaRaw.contaId ?? "");
@@ -206,6 +209,8 @@ export function DespesaForm({ onClose, editData }: Props) {
         pessoaId: pessoaId ? (pessoaId as Id<"pessoas">) : undefined,
         contaId: contaId ? (contaId as Id<"contas">) : undefined,
         dataVencimento,
+        // Data da compra só faz sentido p/ cartão (define a fatura por competência).
+        dataCompra: cartao && dataCompra ? dataCompra : undefined,
         totalParcelas: tipo === "parcelada" ? parseInt(totalParcelas) || 2 : undefined,
         cartao: cartao || undefined,
         recorrente: tipo === "fixa",
@@ -412,6 +417,19 @@ export function DespesaForm({ onClose, editData }: Props) {
               Compras no cartão não debitam saldo na hora — entram na fatura
               {contaId ? " e serão pagas pela conta selecionada acima." : "."}
             </p>
+          )}
+          {cartao && (
+            <div className="mt-2">
+              <Input
+                label="Data da compra (opcional)"
+                type="date"
+                value={dataCompra}
+                onChange={(e) => setDataCompra(e.target.value)}
+              />
+              <p className="text-xs text-slate-500 mt-0.5">
+                Define em qual fatura entra, pela data de fechamento do cartão. Se vazio, usa o vencimento.
+              </p>
+            </div>
           )}
           {showNovoCartao && (
             <div className="flex flex-wrap gap-2 items-center p-2.5 rounded-lg bg-slate-50 border">

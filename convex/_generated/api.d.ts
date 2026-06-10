@@ -28,6 +28,7 @@ import type * as financeiro_contas from "../financeiro/contas.js";
 import type * as financeiro_dashboardFinanceiro from "../financeiro/dashboardFinanceiro.js";
 import type * as financeiro_despesas from "../financeiro/despesas.js";
 import type * as financeiro_dividas from "../financeiro/dividas.js";
+import type * as financeiro_faturas from "../financeiro/faturas.js";
 import type * as financeiro_lancamentos from "../financeiro/lancamentos.js";
 import type * as financeiro_metas from "../financeiro/metas.js";
 import type * as financeiro_migrations from "../financeiro/migrations.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   "financeiro/dashboardFinanceiro": typeof financeiro_dashboardFinanceiro;
   "financeiro/despesas": typeof financeiro_despesas;
   "financeiro/dividas": typeof financeiro_dividas;
+  "financeiro/faturas": typeof financeiro_faturas;
   "financeiro/lancamentos": typeof financeiro_lancamentos;
   "financeiro/metas": typeof financeiro_metas;
   "financeiro/migrations": typeof financeiro_migrations;

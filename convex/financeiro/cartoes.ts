@@ -118,3 +118,37 @@ export const remove = mutation({
     await ctx.db.delete(id);
   },
 });
+
+// Backfill idempotente: liga despesas antigas (com `cartao` string mas sem
+// cartaoId) ao cartão cadastrado, casando por nome normalizado. Reaproveitável
+// p/ o índice by_family_cartao (Fase 3) e robustez a renomeações. Retorna
+// relatório com órfãs (nomes que não casaram com nenhum cartão cadastrado).
+export const migrarCartaoIds = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const [despesas, cartoes] = await Promise.all([
+      ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", user.familyId)).collect(),
+      ctx.db.query("cartoes").withIndex("by_family", (q) => q.eq("familyId", user.familyId)).collect(),
+    ]);
+    const porNome = new Map(cartoes.map((c) => [normalizarNomeCartao(c.nome), c]));
+    let ligadas = 0;
+    let totalComCartao = 0;
+    const orfasSet = new Set<string>();
+    const orfas: string[] = [];
+    for (const d of despesas) {
+      if (!d.cartao) continue;
+      totalComCartao++;
+      if (d.cartaoId) continue;
+      const match = porNome.get(normalizarNomeCartao(d.cartao));
+      if (match) {
+        await ctx.db.patch(d._id, { cartao: match.nome, cartaoId: match._id });
+        ligadas++;
+      } else if (!orfasSet.has(d.cartao)) {
+        orfasSet.add(d.cartao);
+        orfas.push(d.cartao);
+      }
+    }
+    return { ligadas, orfas, totalComCartao };
+  },
+});

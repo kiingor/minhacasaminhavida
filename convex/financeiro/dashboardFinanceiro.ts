@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, QueryCtx } from "../_generated/server";
 import { getCurrentUser, resolveFamilyContext } from "../_helpers";
 import { Id } from "../_generated/dataModel";
+import { ocorrenciasCartaoNaCompetencia, criarResolvedorCiclo } from "./faturas";
 
 function monthDiff(from: string, to: string): number {
   const [fy, fm] = from.split("-").map(Number);
@@ -572,30 +573,51 @@ export const progressoMes = query({
   handler: async (ctx, { sessionToken, mes, familyIdAlvo }) => {
     const { familyId } = await resolveFamilyContext(ctx, sessionToken, familyIdAlvo);
     const despesas = await ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", familyId)).collect();
-    const { pagoSet } = await baixasDoMes(ctx, familyId, mes);
-    const dMes = despesas.filter((d) => isDespesaInMes(d, mes));
+    const cartoes = await ctx.db.query("cartoes").withIndex("by_family", (q) => q.eq("familyId", familyId)).collect();
+    const fechamentoDe = criarResolvedorCiclo(cartoes);
 
-    // Despesas avulsas: cada uma conta como 1 "conta".
-    // Despesas de cartão: agrupadas por cartão = 1 fatura (1 conta), pois você paga a fatura inteira de uma vez.
-    const avulsas = dMes.filter((d) => !d.cartao);
+    // Pagamentos chaveados por despesaId:mesCalendario (mes e mes-1) p/ casar com a
+    // reprojeção por competência dos cartões com ciclo (igual a lancamentos.listByMonth).
+    const mesAnt = shiftMonth(mes, -1);
+    const [pagsMes, pagsAnt] = await Promise.all([
+      ctx.db.query("pagamentosDespesas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId).eq("mes", mes)).collect(),
+      ctx.db.query("pagamentosDespesas").withIndex("by_familia_mes", (q) => q.eq("familyId", familyId).eq("mes", mesAnt)).collect(),
+    ]);
+    const pagoKey = new Set<string>();
+    for (const p of [...pagsMes, ...pagsAnt]) pagoKey.add(`${p.despesaId as string}:${p.mes}`);
+
+    // Avulsas (sem cartão): 1 conta cada. Cartão: agrupado por cartão = 1 fatura.
+    const avulsas: typeof despesas = [];
     const faturas = new Map<string, { total: number; pago: boolean }>();
-    for (const d of dMes) {
-      if (!d.cartao) continue;
-      let f = faturas.get(d.cartao);
-      if (!f) { f = { total: 0, pago: true }; faturas.set(d.cartao, f); }
-      f.total += valorDespesaNoMes(d, mes);
-      // Fatura só está "paga" quando TODOS os lançamentos do mês daquele cartão estão pagos.
-      if (!pagoSet.has(d._id as string)) f.pago = false;
+    for (const d of despesas) {
+      if (!d.cartao) {
+        if (isDespesaInMes(d, mes)) avulsas.push(d);
+        continue;
+      }
+      const F = fechamentoDe(d);
+      const addFatura = (mesCal: string) => {
+        let f = faturas.get(d.cartao!);
+        if (!f) { f = { total: 0, pago: true }; faturas.set(d.cartao!, f); }
+        f.total += valorDespesaNoMes(d, mesCal);
+        if (!pagoKey.has(`${d._id as string}:${mesCal}`)) f.pago = false;
+      };
+      if (F != null) {
+        for (const occ of ocorrenciasCartaoNaCompetencia(d, mes, F)) addFatura(occ.mesCalendario);
+      } else if (isDespesaInMes(d, mes)) {
+        addFatura(mes);
+      }
     }
     const faturasArr = Array.from(faturas.values());
 
     const totalContas = avulsas.length + faturasArr.length;
     const contasPagas =
-      avulsas.filter((d) => pagoSet.has(d._id as string)).length +
+      avulsas.filter((d) => pagoKey.has(`${d._id as string}:${mes}`)).length +
       faturasArr.filter((f) => f.pago).length;
-    const valorTotal = dMes.reduce((s, d) => s + valorDespesaNoMes(d, mes), 0);
+    const valorTotal =
+      avulsas.reduce((s, d) => s + valorDespesaNoMes(d, mes), 0) +
+      faturasArr.reduce((s, f) => s + f.total, 0);
     const valorPago =
-      avulsas.filter((d) => pagoSet.has(d._id as string)).reduce((s, d) => s + valorDespesaNoMes(d, mes), 0) +
+      avulsas.filter((d) => pagoKey.has(`${d._id as string}:${mes}`)).reduce((s, d) => s + valorDespesaNoMes(d, mes), 0) +
       faturasArr.filter((f) => f.pago).reduce((s, f) => s + f.total, 0);
     const percentual = totalContas === 0 ? 0 : Math.round((contasPagas / totalContas) * 100);
     return { totalContas, contasPagas, valorTotal, valorPago, percentual };
@@ -652,13 +674,22 @@ export const cartaoVsAVista = query({
   handler: async (ctx, { sessionToken, mes, familyIdAlvo }) => {
     const { familyId } = await resolveFamilyContext(ctx, sessionToken, familyIdAlvo);
     const despesas = await ctx.db.query("despesas").withIndex("by_family_mes", (q) => q.eq("familyId", familyId)).collect();
-    const dMes = despesas.filter((d) => isDespesaInMes(d, mes));
+    const cartoes = await ctx.db.query("cartoes").withIndex("by_family", (q) => q.eq("familyId", familyId)).collect();
+    const fechamentoDe = criarResolvedorCiclo(cartoes);
     let cartao = 0;
     let aVista = 0;
-    for (const d of dMes) {
-      const v = valorDespesaNoMes(d, mes);
-      if (d.cartao && d.cartao.trim()) cartao += v;
-      else aVista += v;
+    for (const d of despesas) {
+      if (d.cartao && d.cartao.trim()) {
+        const F = fechamentoDe(d);
+        if (F != null) {
+          // Cartão com ciclo: soma as ocorrências cuja competência == mes.
+          for (const occ of ocorrenciasCartaoNaCompetencia(d, mes, F)) cartao += valorDespesaNoMes(d, occ.mesCalendario);
+        } else if (isDespesaInMes(d, mes)) {
+          cartao += valorDespesaNoMes(d, mes);
+        }
+      } else if (isDespesaInMes(d, mes)) {
+        aVista += valorDespesaNoMes(d, mes);
+      }
     }
     return { cartao, aVista };
   },

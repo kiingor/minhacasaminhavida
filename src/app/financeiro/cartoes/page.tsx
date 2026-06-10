@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Pencil, CreditCard } from "lucide-react";
+import { Plus, Trash2, Pencil, CreditCard, ChevronRight } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { periodoGracaDias } from "../../../../convex/financeiro/cartaoCiclo";
@@ -47,6 +48,24 @@ export default function CartoesPage() {
   const create = useMutation(api.financeiro.cartoes.create);
   const update = useMutation(api.financeiro.cartoes.update);
   const remove = useMutation(api.financeiro.cartoes.remove);
+  const migrar = useMutation(api.financeiro.cartoes.migrarCartaoIds);
+  const [migrando, setMigrando] = useState(false);
+  const [migracaoMsg, setMigracaoMsg] = useState("");
+
+  async function vincularAntigos() {
+    if (!token) return;
+    setMigrando(true);
+    setMigracaoMsg("");
+    try {
+      const r = await migrar({ sessionToken: token });
+      const base = `${r.ligadas} lançamento(s) vinculado(s).`;
+      setMigracaoMsg(r.orfas.length > 0 ? `${base} Sem cartão correspondente: ${r.orfas.join(", ")}.` : base);
+    } catch (e) {
+      setMigracaoMsg(e instanceof Error ? e.message : "Erro ao vincular.");
+    } finally {
+      setMigrando(false);
+    }
+  }
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<Id<"cartoes"> | null>(null);
@@ -157,20 +176,23 @@ export default function CartoesPage() {
                 transition={{ delay: i * 0.04 }}
                 className={`rounded-xl bg-white border p-4 flex items-center gap-3 ${inativo ? "opacity-60" : ""}`}
               >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${c.cor}20`, color: c.cor }}>
-                  <CreditCard size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium flex items-center gap-2">
-                    {c.nome}
-                    {inativo && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">inativo</span>}
+                <Link href={`/financeiro/cartoes/${c._id}`} className="flex items-center gap-3 flex-1 min-w-0 group">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${c.cor}20`, color: c.cor }}>
+                    <CreditCard size={20} />
                   </div>
-                  <div className="text-xs text-slate-400 flex flex-wrap gap-x-2 gap-y-0.5">
-                    {c.bandeira && <span>{c.bandeira}</span>}
-                    {c.limiteTotal != null && <span>· limite {formatBRL(c.limiteTotal)}</span>}
-                    {temCiclo && <span>· fecha dia {c.diaFechamento} · vence dia {c.diaVencimento}</span>}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium flex items-center gap-2">
+                      {c.nome}
+                      {inativo && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">inativo</span>}
+                    </div>
+                    <div className="text-xs text-slate-400 flex flex-wrap gap-x-2 gap-y-0.5">
+                      {c.bandeira && <span>{c.bandeira}</span>}
+                      {c.limiteTotal != null && <span>· limite {formatBRL(c.limiteTotal)}</span>}
+                      {temCiclo && <span>· fecha dia {c.diaFechamento} · vence dia {c.diaVencimento}</span>}
+                    </div>
                   </div>
-                </div>
+                  <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
+                </Link>
                 <button onClick={() => openEdit(c)} className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded transition-colors">
                   <Pencil size={14} />
                 </button>
@@ -181,6 +203,22 @@ export default function CartoesPage() {
             );
           })}
         </ul>
+      )}
+
+      {cartoes && cartoes.length > 0 && (
+        <div className="pt-2 border-t border-slate-100">
+          <button
+            onClick={vincularAntigos}
+            disabled={migrando}
+            className="text-xs text-slate-500 hover:text-primary underline disabled:opacity-50"
+          >
+            {migrando ? "Vinculando..." : "Vincular lançamentos antigos aos cartões"}
+          </button>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Liga despesas antigas (que guardam só o nome do cartão) ao cadastro, casando pelo nome.
+          </p>
+          {migracaoMsg && <p className="text-xs text-slate-600 mt-1">{migracaoMsg}</p>}
+        </div>
       )}
 
       <Dialog open={showForm} onClose={() => { setShowForm(false); setEditingId(null); }} title={editingId ? "Editar Cartão" : "Novo Cartão"} className="max-h-[90vh] overflow-y-auto">

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "../_generated/server";
 import { getCurrentUser } from "../_helpers";
+import { resolverCartaoEscrita } from "../financeiro/cartoes";
 
 // ===== Tipos do payload =====
 // despesa:
@@ -61,6 +62,10 @@ export const confirmar = mutation({
 
     try {
       if (d.tipo === "despesa") {
+        // Ponto único de escrita: resolve nome+FK do cartão também no fluxo do agente.
+        const cartaoResolved = await resolverCartaoEscrita(ctx, user.familyId, {
+          cartao: payload.cartao,
+        });
         const despesaId = await ctx.db.insert("despesas", {
           descricao: String(payload.descricao),
           valor: Math.abs(Math.round(Number(payload.valor) || 0)),
@@ -71,7 +76,7 @@ export const confirmar = mutation({
           pago: false,
           totalParcelas: payload.totalParcelas,
           parcelaAtual: payload.parcelaAtual,
-          cartao: payload.cartao,
+          ...cartaoResolved,
           observacao: payload.observacao,
           criadoPor: user._id,
           familyId: user.familyId,

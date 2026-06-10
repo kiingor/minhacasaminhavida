@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
 import { getCurrentUser, logExclusao } from "../_helpers";
+import { resolverCartaoEscrita } from "./cartoes";
 
 // ===== Helpers de recorrencia =====
 
@@ -157,6 +158,8 @@ export const create = mutation({
     totalParcelas: v.optional(v.number()),
     parcelaAtual: v.optional(v.number()),
     cartao: v.optional(v.string()),
+    cartaoId: v.optional(v.id("cartoes")),
+    dataCompra: v.optional(v.string()),
     recorrente: v.optional(v.boolean()),
     periodicidade: v.optional(
       v.union(v.literal("mensal"), v.literal("anual"), v.literal("sazonal"))
@@ -166,7 +169,7 @@ export const create = mutation({
     // Quando true, já registra o pagamento (efetivado) no mês do vencimento.
     jaPago: v.optional(v.boolean()),
   },
-  handler: async (ctx, { sessionToken, jaPago, ...args }) => {
+  handler: async (ctx, { sessionToken, jaPago, cartao, cartaoId, ...args }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const cat = await ctx.db.get(args.categoriaId);
     if (!cat || cat.familyId !== user.familyId) throw new Error("Categoria inválida");
@@ -179,8 +182,11 @@ export const create = mutation({
       if (!pessoa || pessoa.familyId !== user.familyId) throw new Error("Pessoa inválida");
     }
     validarRecorrenciaDespesa(args);
+    // Ponto único de escrita: resolve nome+FK do cartão de forma consistente.
+    const cartaoResolved = await resolverCartaoEscrita(ctx, user.familyId, { cartao, cartaoId });
     const despesaId = await ctx.db.insert("despesas", {
       ...args,
+      ...cartaoResolved,
       pago: false,
       criadoPor: user._id,
       familyId: user.familyId,
@@ -188,7 +194,7 @@ export const create = mutation({
     });
     // Lançamento "já pago": cria o registro de pagamento no mês do vencimento.
     // Não se aplica a compras no cartão — essas entram na fatura.
-    if (jaPago && !args.cartao) {
+    if (jaPago && !cartaoResolved.cartao) {
       await ctx.db.insert("pagamentosDespesas", {
         despesaId,
         mes: args.dataVencimento.slice(0, 7),
@@ -292,6 +298,8 @@ export const update = mutation({
     totalParcelas: v.optional(v.number()),
     parcelaAtual: v.optional(v.number()),
     cartao: v.optional(v.string()),
+    cartaoId: v.optional(v.id("cartoes")),
+    dataCompra: v.optional(v.string()),
     recorrente: v.optional(v.boolean()),
     periodicidade: v.optional(
       v.union(v.literal("mensal"), v.literal("anual"), v.literal("sazonal"))
@@ -299,7 +307,7 @@ export const update = mutation({
     mesesSazonais: v.optional(v.array(v.number())),
     observacao: v.optional(v.string()),
   },
-  handler: async (ctx, { sessionToken, id, ...args }) => {
+  handler: async (ctx, { sessionToken, id, cartao, cartaoId, ...args }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const d = await ctx.db.get(id);
     if (!d || d.familyId !== user.familyId) throw new Error("Não encontrado");
@@ -314,7 +322,9 @@ export const update = mutation({
       if (!pessoa || pessoa.familyId !== user.familyId) throw new Error("Pessoa inválida");
     }
     validarRecorrenciaDespesa(args);
-    await ctx.db.patch(id, args);
+    // Ponto único de escrita: mantém nome+FK do cartão alinhados também na edição.
+    const cartaoResolved = await resolverCartaoEscrita(ctx, user.familyId, { cartao, cartaoId });
+    await ctx.db.patch(id, { ...args, ...cartaoResolved });
   },
 });
 

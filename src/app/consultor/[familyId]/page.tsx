@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import {
   MessageCircle, CalendarPlus, Receipt, Target, MessageSquare, ChevronRight, Eye,
+  Mail, Pencil, Check, X,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,7 @@ export default function ConsultorClientePage({
   const token = useSessionToken();
   const [mes, setMes] = useState(currentMonth());
   const [showAgendar, setShowAgendar] = useState(false);
-  const [tabAtiva, setTabAtiva] = useState<"dashboard" | "comentarios" | "reunioes" | "dividas" | "metas">("dashboard");
+  const [tabAtiva, setTabAtiva] = useState<"dashboard" | "comentarios" | "reunioes" | "dividas" | "metas" | "contas">("dashboard");
 
   const resumo = useQuery(
     api.consultor.resumoCliente,
@@ -86,6 +88,9 @@ export default function ConsultorClientePage({
           <Target size={13} /> Metas
           {resumo.qtdMetasAtivas > 0 && <Pill tone="neutral" size="xs">{resumo.qtdMetasAtivas}</Pill>}
         </TabBtn>
+        <TabBtn ativo={tabAtiva === "contas"} onClick={() => setTabAtiva("contas")}>
+          <Mail size={13} /> Contas
+        </TabBtn>
       </div>
 
       {/* Tab content */}
@@ -108,6 +113,7 @@ export default function ConsultorClientePage({
       {tabAtiva === "reunioes" && <TabReunioes familyId={familyId} setShowAgendar={setShowAgendar} />}
       {tabAtiva === "dividas" && <TabDividas familyId={familyId} />}
       {tabAtiva === "metas" && <TabMetas familyId={familyId} />}
+      {tabAtiva === "contas" && <TabContas familyId={familyId} />}
 
       <AgendarReuniaoDialog
         open={showAgendar}
@@ -354,6 +360,124 @@ function TabMetas({ familyId }: { familyId: string }) {
                 </div>
                 <div className="flex items-center justify-between text-[11px] mt-2 text-ink-400">
                   <span className="font-semibold text-ink-700">{pct}% concluído</span>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =================== TAB CONTAS (emails de login) ===================
+function TabContas({ familyId }: { familyId: string }) {
+  const token = useSessionToken();
+  const usuarios = useQuery(
+    api.consultor.usuariosCliente,
+    token ? { sessionToken: token, familyId } : "skip",
+  );
+  const alterarEmail = useMutation(api.consultor.alterarEmailUsuario);
+
+  const [editId, setEditId] = useState<string | null>(null);
+  const [novoEmail, setNovoEmail] = useState("");
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [okMsg, setOkMsg] = useState("");
+
+  function cancelar() {
+    setEditId(null);
+    setNovoEmail("");
+    setErro("");
+  }
+
+  async function salvar(userId: Id<"users">) {
+    if (!token) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      await alterarEmail({ sessionToken: token, usuarioId: userId, novoEmail: novoEmail.trim() });
+      setOkMsg("Email atualizado.");
+      cancelar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao salvar.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-display font-bold text-lg text-ink-900">Contas de acesso</h2>
+        <p className="text-xs text-ink-400 mt-0.5">
+          Corrija o email de login de uma conta (ex.: cliente digitou errado no cadastro). A senha não muda e a pessoa continua logada.
+        </p>
+      </div>
+
+      {okMsg && (
+        <Card tone="cream" className="text-sm text-ink-700 py-3 flex items-center gap-2">
+          <Check size={14} className="text-coral-600" /> {okMsg}
+        </Card>
+      )}
+
+      {usuarios === undefined ? (
+        <Skeleton className="h-32 rounded-3xl" />
+      ) : usuarios.length === 0 ? (
+        <Card tone="cream" className="text-center py-8 text-sm text-ink-400">
+          Nenhuma conta de login nesta família.
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {usuarios.map((u) => {
+            const emEdicao = editId === (u.userId as string);
+            return (
+              <Card key={u.userId as string} padding="md">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
+                    style={{ background: u.pessoaCorTema || "#FF6B47" }}
+                  >
+                    {(u.pessoaNome || u.name).slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-ink-900 truncate">{u.pessoaNome || u.name}</span>
+                      <Pill tone={u.role === "admin" ? "coral" : "neutral"} size="xs">{u.role}</Pill>
+                    </div>
+                    {emEdicao ? (
+                      <div className="mt-2 space-y-2">
+                        <input
+                          type="email"
+                          value={novoEmail}
+                          onChange={(e) => { setNovoEmail(e.target.value); setErro(""); }}
+                          className="w-full h-9 rounded-lg border border-cream-300 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-coral-400"
+                          placeholder="email@exemplo.com"
+                          autoFocus
+                        />
+                        {erro && <p className="text-xs text-coral-600">{erro}</p>}
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => salvar(u.userId)} disabled={salvando || !novoEmail.trim()}>
+                            <Check size={14} /> {salvando ? "Salvando..." : "Salvar"}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelar} disabled={salvando}>
+                            <X size={14} /> Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-ink-500 truncate mt-0.5">{u.email}</div>
+                    )}
+                  </div>
+                  {!emEdicao && (
+                    <button
+                      onClick={() => { setEditId(u.userId as string); setNovoEmail(u.email); setErro(""); setOkMsg(""); }}
+                      className="p-1.5 text-ink-300 hover:text-coral-600 hover:bg-coral-50 rounded transition-colors shrink-0"
+                      aria-label={`Editar email de ${u.name}`}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
                 </div>
               </Card>
             );

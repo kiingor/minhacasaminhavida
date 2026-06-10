@@ -240,6 +240,107 @@ export const consultoresDaFamilia = query({
 });
 
 // ============================================================
+// CONTAS DE ACESSO (users de login) — gestao pelo consultor
+// ============================================================
+// O consultor pode CORRIGIR o email de login de uma conta da familia que ele
+// acessa (ex.: cliente digitou o email errado no cadastro). A senha NAO muda,
+// entao alterar o email nao concede acesso a ninguem sem a senha. Sessoes
+// referenciam userId (nao email), logo o usuario continua logado.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Lista as contas de login (users) de uma familia. Acesso: consultor ativo OU
+// membro da propria familia.
+export const usuariosCliente = query({
+  args: { sessionToken: v.string(), familyId: v.string() },
+  handler: async (ctx, { sessionToken, familyId }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    if (user.role === "consultor") {
+      const acesso = await getConsultorAccess(ctx, user._id, familyId);
+      if (!acesso) throw new Error("Sem acesso a esta familia");
+    } else if (user.familyId !== familyId) {
+      throw new Error("Permissao negada");
+    }
+
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_family", (q) => q.eq("familyId", familyId))
+      .collect();
+
+    const pessoaIds = users
+      .map((u) => u.pessoaId)
+      .filter((id): id is NonNullable<typeof id> => !!id);
+    const pessoasArr = await Promise.all(pessoaIds.map((id) => ctx.db.get(id)));
+    const pessoaMap = new Map(
+      pessoasArr
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .map((p) => [p._id as string, p])
+    );
+
+    return users
+      .map((u) => {
+        const pessoa = u.pessoaId ? pessoaMap.get(u.pessoaId as string) : undefined;
+        return {
+          userId: u._id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          pessoaNome: pessoa ? (pessoa.apelido ?? pessoa.nome) : null,
+          pessoaFotoUrl: pessoa?.fotoUrl ?? null,
+          pessoaCorTema: pessoa?.corTema ?? null,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
+// Consultor altera (corrige) o email de login de uma conta da familia que acessa.
+export const alterarEmailUsuario = mutation({
+  args: {
+    sessionToken: v.string(),
+    usuarioId: v.id("users"),
+    novoEmail: v.string(),
+  },
+  handler: async (ctx, { sessionToken, usuarioId, novoEmail }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    if (user.role !== "consultor") {
+      throw new Error("Apenas o consultor pode alterar o email por aqui");
+    }
+
+    const alvo = await ctx.db.get(usuarioId);
+    if (!alvo) throw new Error("Usuario nao encontrado");
+
+    // Consultor nao pertence a familia: so edita contas de familias que acessa.
+    const acesso = await getConsultorAccess(ctx, user._id, alvo.familyId);
+    if (!acesso) throw new Error("Sem acesso a esta familia");
+    // Nao mexe em contas de consultor (nao fazem parte da familia do cliente).
+    if (alvo.role === "consultor") {
+      throw new Error("Nao e possivel alterar o email de um consultor");
+    }
+
+    const email = novoEmail.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new Error("Email invalido");
+    if (email === alvo.email) return { alterado: false as const };
+
+    // Email e a identidade de login: precisa ser unico.
+    const existente = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    if (existente && existente._id !== alvo._id) {
+      throw new Error("Este email ja esta cadastrado por outra conta");
+    }
+
+    const emailAntigo = alvo.email;
+    await ctx.db.patch(usuarioId, { email });
+    console.log(
+      `[consultor] consultor=${user._id} alterou email user=${usuarioId}: ${emailAntigo} -> ${email}`
+    );
+    return { alterado: true as const, emailAntigo, emailNovo: email };
+  },
+});
+
+// ============================================================
 // COMENTARIOS
 // ============================================================
 

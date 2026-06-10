@@ -158,3 +158,47 @@ export const perfilCasal = query({
     });
   },
 });
+
+// Altera (corrige) o email de login de uma conta da familia.
+// Quem pode: o proprio usuario (seu email) OU o admin da familia (qualquer membro).
+// A senha NAO muda; sessoes referenciam userId, entao a pessoa segue logada.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const alterarEmail = mutation({
+  args: {
+    sessionToken: v.string(),
+    usuarioId: v.id("users"),
+    novoEmail: v.string(),
+  },
+  handler: async (ctx, { sessionToken, usuarioId, novoEmail }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const alvo = await ctx.db.get(usuarioId);
+    if (!alvo) throw new Error("Usuário não encontrado");
+    // Mesma família (consultor tem familyId próprio CONS-..., logo fica de fora).
+    if (alvo.familyId !== user.familyId) throw new Error("Permissão negada");
+    // Self-service OU admin editando outro membro.
+    const ehProprio = alvo._id === user._id;
+    if (!ehProprio && user.role !== "admin") {
+      throw new Error("Apenas o admin pode alterar o email de outro membro");
+    }
+
+    const email = novoEmail.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new Error("Email inválido");
+    if (email === alvo.email) return { alterado: false as const };
+
+    // Email é a identidade de login: precisa ser único.
+    const existente = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    if (existente && existente._id !== alvo._id) {
+      throw new Error("Este email já está cadastrado por outra conta");
+    }
+
+    const emailAntigo = alvo.email;
+    await ctx.db.patch(usuarioId, { email });
+    console.log(
+      `[familia] user=${user._id} alterou email user=${usuarioId}: ${emailAntigo} -> ${email}`
+    );
+    return { alterado: true as const, emailAntigo, emailNovo: email };
+  },
+});

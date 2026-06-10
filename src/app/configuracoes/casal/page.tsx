@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { UserPlus, Shield, Mail, UserCircle2, Info, Copy, Check } from "lucide-react";
+import { UserPlus, Shield, Mail, UserCircle2, Info, Copy, Check, Pencil, X } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,38 @@ export default function ConfigCasalPage() {
   const familia = useQuery(api.auth.meuConvite, token ? { token } : "skip");
   const codigo = familia?.conviteCode ?? familia?.familyId ?? "";
   const [copiado, setCopiado] = useState(false);
+
+  // Edição de email de login (self-service + admin edita qualquer membro)
+  const alterarEmail = useMutation(api.pessoas.alterarEmail);
+  const souAdmin = perfis?.find((p) => p.ehAtual)?.role === "admin";
+  const [editId, setEditId] = useState<string | null>(null);
+  const [novoEmail, setNovoEmail] = useState("");
+  const [erroEmail, setErroEmail] = useState("");
+  const [salvandoEmail, setSalvandoEmail] = useState(false);
+
+  function abrirEdicaoEmail(userId: string, emailAtual: string) {
+    setEditId(userId);
+    setNovoEmail(emailAtual);
+    setErroEmail("");
+  }
+  function cancelarEdicaoEmail() {
+    setEditId(null);
+    setNovoEmail("");
+    setErroEmail("");
+  }
+  async function salvarEmail(userId: Id<"users">) {
+    if (!token) return;
+    setSalvandoEmail(true);
+    setErroEmail("");
+    try {
+      await alterarEmail({ sessionToken: token, usuarioId: userId, novoEmail: novoEmail.trim() });
+      cancelarEdicaoEmail();
+    } catch (e) {
+      setErroEmail(e instanceof Error ? e.message : "Erro ao salvar.");
+    } finally {
+      setSalvandoEmail(false);
+    }
+  }
 
   async function copiarCodigo() {
     if (!codigo) return;
@@ -131,11 +164,43 @@ export default function ConfigCasalPage() {
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 truncate">
-                    <Mail size={11} className="shrink-0" />
-                    <span className="truncate">{p.email}</span>
-                  </div>
+                  {editId === (p.userId as string) ? (
+                    <div className="mt-2 space-y-2">
+                      <input
+                        type="email"
+                        value={novoEmail}
+                        onChange={(e) => { setNovoEmail(e.target.value); setErroEmail(""); }}
+                        className="w-full h-9 rounded-lg border border-slate-300 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                        placeholder="email@exemplo.com"
+                        autoFocus
+                      />
+                      {erroEmail && <p className="text-xs text-danger">{erroEmail}</p>}
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => salvarEmail(p.userId)} disabled={salvandoEmail || !novoEmail.trim()}>
+                          <Check size={14} /> {salvandoEmail ? "Salvando..." : "Salvar"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={cancelarEdicaoEmail} disabled={salvandoEmail}>
+                          <X size={14} /> Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 truncate">
+                      <Mail size={11} className="shrink-0" />
+                      <span className="truncate">{p.email}</span>
+                    </div>
+                  )}
                 </div>
+                {(p.ehAtual || souAdmin) && editId !== (p.userId as string) && (
+                  <button
+                    onClick={() => abrirEdicaoEmail(p.userId as string, p.email)}
+                    className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded transition-colors shrink-0"
+                    aria-label={`Editar email de ${p.pessoaNome ?? p.name}`}
+                    title="Corrigir email de login"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

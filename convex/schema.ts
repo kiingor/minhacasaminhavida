@@ -106,7 +106,13 @@ export default defineSchema({
     pago: v.boolean(),
     totalParcelas: v.optional(v.number()),
     parcelaAtual: v.optional(v.number()),
-    cartao: v.optional(v.string()),
+    cartao: v.optional(v.string()), // NOME do cartão (compat / rótulo legado)
+    // FK real do cartão (Fase 1). Resolvido junto com `cartao` no ponto único
+    // de escrita (resolverCartaoEscrita) p/ não divergir do nome.
+    cartaoId: v.optional(v.id("cartoes")),
+    // Data da COMPRA, distinta do vencimento. Habilita a regra de competência
+    // (compra após o fechamento cai na fatura do mês seguinte). Ausente => usa dataVencimento.
+    dataCompra: v.optional(v.string()), // YYYY-MM-DD
     recorrente: v.optional(v.boolean()),
     // Recorrencia robusta (aplica quando recorrente=true / tipo=fixa)
     periodicidade: v.optional(
@@ -132,7 +138,8 @@ export default defineSchema({
     criadoEm: v.string(),
   })
     .index("by_family_mes", ["familyId", "dataVencimento"])
-    .index("by_family_categoria", ["familyId", "categoriaId"]),
+    .index("by_family_categoria", ["familyId", "categoriaId"])
+    .index("by_family_cartao", ["familyId", "cartaoId"]),
 
   receitas: defineTable({
     descricao: v.string(),
@@ -378,6 +385,12 @@ export default defineSchema({
     nome: v.string(),
     bandeira: v.optional(v.string()), // Visa, Mastercard, Elo, etc.
     cor: v.string(),
+    // Ciclo de fatura (Fase 1 — opcionais p/ retrocompat: cartão sem ciclo
+    // configurado mantém o agrupamento por mês-calendário no fallback).
+    limiteTotal: v.optional(v.number()), // centavos
+    diaFechamento: v.optional(v.number()), // 1..31 (clampado ao último dia do mês)
+    diaVencimento: v.optional(v.number()), // 1..31 (clampado ao último dia do mês)
+    ativo: v.optional(v.boolean()), // ausente => tratado como ativo
     familyId: v.string(),
   }).index("by_family", ["familyId"]),
 

@@ -1,6 +1,63 @@
 import { v } from "convex/values";
-import { query, mutation } from "../_generated/server";
+import { query, mutation, QueryCtx, MutationCtx } from "../_generated/server";
+import { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../_helpers";
+import { normalizarNomeCartao } from "./cartaoCiclo";
+
+// ===== Ponto único de escrita do vínculo despesa<->cartão =====
+// Resolve o par (cartao string, cartaoId) de forma consistente a partir de
+// QUALQUER entrada, garantindo que toda gravação de despesa-cartão tenha ambos
+// alinhados (o nome canônico do cartão + a FK). Usado por despesas.create/update
+// e pelos inserts diretos do agente (drafts.ts), que antes só gravavam a string.
+export async function resolverCartaoEscrita(
+  ctx: QueryCtx | MutationCtx,
+  familyId: string,
+  input: { cartao?: string; cartaoId?: Id<"cartoes"> }
+): Promise<{ cartao?: string; cartaoId?: Id<"cartoes"> }> {
+  // 1. cartaoId é a fonte de verdade: valida família e usa o nome canônico.
+  if (input.cartaoId) {
+    const c = await ctx.db.get(input.cartaoId);
+    if (!c || c.familyId !== familyId) throw new Error("Cartão inválido");
+    return { cartaoId: input.cartaoId, cartao: c.nome };
+  }
+  // 2. Só veio o nome (string): tenta casar com um cartão cadastrado (normalizado).
+  const nome = input.cartao?.trim();
+  if (!nome) return { cartao: undefined, cartaoId: undefined };
+  const cartoes = await ctx.db
+    .query("cartoes")
+    .withIndex("by_family", (q) => q.eq("familyId", familyId))
+    .collect();
+  const alvo = normalizarNomeCartao(nome);
+  const match = cartoes.find((c) => normalizarNomeCartao(c.nome) === alvo);
+  // Mantém a string original como rótulo (compat) e liga a FK se casou.
+  return { cartao: match ? match.nome : nome, cartaoId: match?._id };
+}
+
+// Valida os campos de ciclo (todos opcionais). Lança em valores inconsistentes.
+function validarCicloCartao(args: {
+  limiteTotal?: number;
+  diaFechamento?: number;
+  diaVencimento?: number;
+}) {
+  if (args.limiteTotal !== undefined && (args.limiteTotal < 0 || !Number.isFinite(args.limiteTotal))) {
+    throw new Error("Limite inválido");
+  }
+  for (const [campo, val] of [
+    ["diaFechamento", args.diaFechamento],
+    ["diaVencimento", args.diaVencimento],
+  ] as const) {
+    if (val !== undefined && (!Number.isInteger(val) || val < 1 || val > 31)) {
+      throw new Error(`${campo} deve ser um dia entre 1 e 31`);
+    }
+  }
+  if (
+    args.diaFechamento !== undefined &&
+    args.diaVencimento !== undefined &&
+    args.diaFechamento === args.diaVencimento
+  ) {
+    throw new Error("Dia de fechamento e vencimento não podem ser iguais");
+  }
+}
 
 export const list = query({
   args: { sessionToken: v.string() },
@@ -19,9 +76,14 @@ export const create = mutation({
     nome: v.string(),
     bandeira: v.optional(v.string()),
     cor: v.string(),
+    limiteTotal: v.optional(v.number()),
+    diaFechamento: v.optional(v.number()),
+    diaVencimento: v.optional(v.number()),
+    ativo: v.optional(v.boolean()),
   },
   handler: async (ctx, { sessionToken, ...args }) => {
     const user = await getCurrentUser(ctx, sessionToken);
+    validarCicloCartao(args);
     return await ctx.db.insert("cartoes", { ...args, familyId: user.familyId });
   },
 });
@@ -33,11 +95,16 @@ export const update = mutation({
     nome: v.optional(v.string()),
     bandeira: v.optional(v.string()),
     cor: v.optional(v.string()),
+    limiteTotal: v.optional(v.number()),
+    diaFechamento: v.optional(v.number()),
+    diaVencimento: v.optional(v.number()),
+    ativo: v.optional(v.boolean()),
   },
   handler: async (ctx, { sessionToken, id, ...rest }) => {
     const user = await getCurrentUser(ctx, sessionToken);
     const c = await ctx.db.get(id);
     if (!c || c.familyId !== user.familyId) throw new Error("Não encontrado");
+    validarCicloCartao(rest);
     await ctx.db.patch(id, rest);
   },
 });

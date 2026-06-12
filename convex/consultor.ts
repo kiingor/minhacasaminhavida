@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getCurrentUser, getConsultorAccess } from "./_helpers";
+import { getCurrentUser, getConsultorAccess, executarRemocaoConta } from "./_helpers";
 import { Id } from "./_generated/dataModel";
 
 // ============================================================
@@ -337,6 +337,41 @@ export const alterarEmailUsuario = mutation({
       `[consultor] consultor=${user._id} alterou email user=${usuarioId}: ${emailAntigo} -> ${email}`
     );
     return { alterado: true as const, emailAntigo, emailNovo: email };
+  },
+});
+
+// Consultor remove uma conta de login de uma familia que acessa.
+// Apaga o login (users) + sessoes + desativa a pessoa vinculada (ativo=false),
+// mantendo o historico. Mesmas travas da remocao da familia (nunca o ultimo
+// admin). Consultor nao pode remover conta de outro consultor.
+export const removerContaUsuario = mutation({
+  args: { sessionToken: v.string(), usuarioId: v.id("users") },
+  handler: async (ctx, { sessionToken, usuarioId }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    if (user.role !== "consultor") {
+      throw new Error("Apenas o consultor pode remover contas por aqui");
+    }
+
+    const alvo = await ctx.db.get(usuarioId);
+    if (!alvo) throw new Error("Usuário não encontrado");
+
+    // Consultor nao pertence a familia: so remove contas de familias que acessa.
+    const acesso = await getConsultorAccess(ctx, user._id, alvo.familyId);
+    if (!acesso) throw new Error("Sem acesso a esta família");
+    // Nao mexe em contas de consultor (nao fazem parte da familia do cliente).
+    if (alvo.role === "consultor") {
+      throw new Error("Não é possível remover a conta de um consultor");
+    }
+
+    await executarRemocaoConta(ctx, {
+      alvo,
+      executorId: user._id,
+      mutationCalled: "consultor.removerContaUsuario",
+    });
+    console.log(
+      `[consultor] consultor=${user._id} removeu conta user=${usuarioId} (familia=${alvo.familyId})`
+    );
+    return { removido: true as const };
   },
 });
 

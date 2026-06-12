@@ -112,7 +112,8 @@ export type AuditEntityType =
   | "conversa"
   | "pagamento"
   | "recebimento"
-  | "override_excluida";
+  | "override_excluida"
+  | "user";
 
 export async function logExclusao(
   ctx: MutationCtx,
@@ -141,4 +142,63 @@ export async function logExclusao(
     // Audit log nunca deve quebrar a mutation principal — só loga em console.
     console.error("[audit] falha ao registrar exclusão:", err);
   }
+}
+
+// ============ REMOÇÃO DE CONTA DE LOGIN ============
+// Núcleo destrutivo compartilhado pelas mutations de remoção de conta
+// (família via pessoas.removerConta e consultor via consultor.removerContaUsuario).
+// Aplica a trava de "último admin", grava auditoria, desativa a pessoa vinculada,
+// invalida sessões e por fim deleta o login. As validações de PERMISSÃO
+// (quem pode remover quem) ficam a cargo de cada mutation chamadora.
+export async function executarRemocaoConta(
+  ctx: MutationCtx,
+  opts: {
+    alvo: Doc<"users">;
+    executorId: Id<"users">;
+    mutationCalled: string; // ex: "pessoas.removerConta"
+  }
+): Promise<void> {
+  const { alvo, executorId, mutationCalled } = opts;
+
+  // Trava: nunca remover o último admin da família (evita lockout).
+  if (alvo.role === "admin") {
+    const admins = await ctx.db
+      .query("users")
+      .withIndex("by_family", (q) => q.eq("familyId", alvo.familyId))
+      .filter((q) => q.eq(q.field("role"), "admin"))
+      .collect();
+    if (admins.length <= 1) {
+      throw new Error("Não é possível remover o último admin da família");
+    }
+  }
+
+  // Snapshot completo do login ANTES de qualquer delete (permite investigar/restaurar).
+  await logExclusao(ctx, {
+    entityType: "user",
+    entityId: alvo._id,
+    entityData: alvo,
+    mutationCalled,
+    familyId: alvo.familyId,
+    userId: executorId,
+  });
+
+  // Desativa a pessoa vinculada (mantém histórico; só some das listas/ranking).
+  if (alvo.pessoaId) {
+    const pessoa = await ctx.db.get(alvo.pessoaId);
+    if (pessoa && pessoa.familyId === alvo.familyId) {
+      await ctx.db.patch(alvo.pessoaId, { ativo: false });
+    }
+  }
+
+  // Revoga acesso imediatamente: apaga todas as sessões do usuário.
+  const sessoes = await ctx.db
+    .query("sessions")
+    .withIndex("by_user", (q) => q.eq("userId", alvo._id))
+    .collect();
+  for (const s of sessoes) {
+    await ctx.db.delete(s._id);
+  }
+
+  // Remove o login.
+  await ctx.db.delete(alvo._id);
 }

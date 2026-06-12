@@ -2,12 +2,13 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { UserPlus, Shield, Mail, UserCircle2, Info, Copy, Check, Pencil, X } from "lucide-react";
+import { UserPlus, Shield, Mail, UserCircle2, Info, Copy, Check, Pencil, X, Trash2 } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useSessionToken } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
@@ -30,6 +31,37 @@ export default function ConfigCasalPage() {
   const [novoEmail, setNovoEmail] = useState("");
   const [erroEmail, setErroEmail] = useState("");
   const [salvandoEmail, setSalvandoEmail] = useState(false);
+
+  // Remoção de conta (admin remove outro membro — nunca a própria nem o último admin)
+  const removerConta = useMutation(api.pessoas.removerConta);
+  const [removerAlvo, setRemoverAlvo] = useState<
+    { userId: Id<"users">; nome: string; email: string } | null
+  >(null);
+  const [removendo, setRemovendo] = useState(false);
+  const [erroRemover, setErroRemover] = useState("");
+
+  function fecharRemocao() {
+    if (removendo) return;
+    setRemoverAlvo(null);
+    setErroRemover("");
+  }
+  async function confirmarRemocao() {
+    if (!removerAlvo) return;
+    if (!token) {
+      setErroRemover("Sessão expirada. Recarregue a página.");
+      return;
+    }
+    setRemovendo(true);
+    setErroRemover("");
+    try {
+      await removerConta({ sessionToken: token, usuarioId: removerAlvo.userId });
+      setRemoverAlvo(null);
+    } catch (e) {
+      setErroRemover(e instanceof Error ? e.message : "Erro ao remover.");
+    } finally {
+      setRemovendo(false);
+    }
+  }
 
   function abrirEdicaoEmail(userId: string, emailAtual: string) {
     setEditId(userId);
@@ -192,14 +224,33 @@ export default function ConfigCasalPage() {
                   )}
                 </div>
                 {(p.ehAtual || souAdmin) && editId !== (p.userId as string) && (
-                  <button
-                    onClick={() => abrirEdicaoEmail(p.userId as string, p.email)}
-                    className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded transition-colors shrink-0"
-                    aria-label={`Editar email de ${p.pessoaNome ?? p.name}`}
-                    title="Corrigir email de login"
-                  >
-                    <Pencil size={14} />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => abrirEdicaoEmail(p.userId as string, p.email)}
+                      className="p-2 text-slate-300 hover:text-primary hover:bg-primary/10 rounded transition-colors"
+                      aria-label={`Editar email de ${p.pessoaNome ?? p.name}`}
+                      title="Corrigir email de login"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    {souAdmin && !p.ehAtual && (
+                      <button
+                        onClick={() => {
+                          setRemoverAlvo({
+                            userId: p.userId,
+                            nome: p.pessoaNome ?? p.name,
+                            email: p.email,
+                          });
+                          setErroRemover("");
+                        }}
+                        className="p-2 text-slate-300 hover:text-danger hover:bg-danger/10 rounded transition-colors"
+                        aria-label={`Remover conta de ${p.pessoaNome ?? p.name}`}
+                        title="Remover conta"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 )}
               </li>
             ))}
@@ -253,6 +304,23 @@ export default function ConfigCasalPage() {
           versões futuras.
         </p>
       </motion.div>
+
+      <ConfirmDialog
+        open={!!removerAlvo}
+        onClose={fecharRemocao}
+        onConfirm={confirmarRemocao}
+        closeOnConfirm={false}
+        loading={removendo}
+        erro={erroRemover}
+        title="Remover conta de login"
+        confirmLabel="Remover conta"
+        loadingLabel="Removendo..."
+        description={
+          removerAlvo
+            ? `Tem certeza que deseja remover a conta de ${removerAlvo.nome}?\n\nLogin: ${removerAlvo.email}\n\nO acesso será revogado e o perfil desta pessoa ficará desativado. Os registros históricos são mantidos.\n\nEsta ação não pode ser desfeita.`
+            : ""
+        }
+      />
     </motion.div>
   );
 }

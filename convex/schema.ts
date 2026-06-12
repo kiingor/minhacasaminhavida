@@ -505,6 +505,7 @@ export default defineSchema({
       v.literal("pagamento"),
       v.literal("recebimento"),
       v.literal("override_excluida"), // marcou override.excluida = true em um mês
+      v.literal("user"), // remoção de conta de login (Modo Casal / Consultor)
     ),
     entityId: v.string(), // _id do documento (string pra aceitar qualquer table)
     entityData: v.string(), // JSON snapshot completo do doc antes do delete

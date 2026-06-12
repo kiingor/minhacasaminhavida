@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getCurrentUser, requireAdmin } from "./_helpers";
+import { getCurrentUser, requireAdmin, executarRemocaoConta } from "./_helpers";
 
 export const list = query({
   args: { sessionToken: v.string() },
@@ -156,6 +156,30 @@ export const perfilCasal = query({
         ehAtual: u._id === user._id,
       };
     });
+  },
+});
+
+// Remove uma conta de login da familia (Modo Casal).
+// Apaga o login (users) + sessoes + desativa a pessoa vinculada (ativo=false),
+// mantendo o historico financeiro/tarefas. So o admin remove; nunca a propria
+// conta nem o ultimo admin da familia (trava em executarRemocaoConta).
+export const removerConta = mutation({
+  args: { sessionToken: v.string(), usuarioId: v.id("users") },
+  handler: async (ctx, { sessionToken, usuarioId }) => {
+    const user = await requireAdmin(ctx, sessionToken);
+    const alvo = await ctx.db.get(usuarioId);
+    if (!alvo) throw new Error("Usuário não encontrado");
+    // Mesma família (consultor tem familyId próprio, logo fica de fora).
+    if (alvo.familyId !== user.familyId) throw new Error("Permissão negada");
+    if (alvo._id === user._id) {
+      throw new Error("Não é possível remover a própria conta");
+    }
+    await executarRemocaoConta(ctx, {
+      alvo,
+      executorId: user._id,
+      mutationCalled: "pessoas.removerConta",
+    });
+    return { removido: true as const };
   },
 });
 

@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import {
   MessageCircle, CalendarPlus, Receipt, Target, MessageSquare, ChevronRight, Eye,
-  Mail, Pencil, Check, X,
+  Mail, Pencil, Check, X, Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../../convex/_generated/api";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MonthSelector } from "@/components/financeiro/MonthSelector";
 import { FinanceiroDashboard } from "@/components/financeiro/FinanceiroDashboard";
 import { ComentarioCard } from "@/components/consultor/ComentarioCard";
@@ -378,12 +379,19 @@ function TabContas({ familyId }: { familyId: string }) {
     token ? { sessionToken: token, familyId } : "skip",
   );
   const alterarEmail = useMutation(api.consultor.alterarEmailUsuario);
+  const removerConta = useMutation(api.consultor.removerContaUsuario);
 
   const [editId, setEditId] = useState<string | null>(null);
   const [novoEmail, setNovoEmail] = useState("");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [okMsg, setOkMsg] = useState("");
+
+  const [removerAlvo, setRemoverAlvo] = useState<
+    { userId: Id<"users">; nome: string; email: string } | null
+  >(null);
+  const [removendo, setRemovendo] = useState(false);
+  const [erroRemover, setErroRemover] = useState("");
 
   function cancelar() {
     setEditId(null);
@@ -403,6 +411,30 @@ function TabContas({ familyId }: { familyId: string }) {
       setErro(e instanceof Error ? e.message : "Erro ao salvar.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  function fecharRemocao() {
+    if (removendo) return;
+    setRemoverAlvo(null);
+    setErroRemover("");
+  }
+  async function confirmarRemocao() {
+    if (!removerAlvo) return;
+    if (!token) {
+      setErroRemover("Sessão expirada. Recarregue a página.");
+      return;
+    }
+    setRemovendo(true);
+    setErroRemover("");
+    try {
+      await removerConta({ sessionToken: token, usuarioId: removerAlvo.userId });
+      setOkMsg("Conta removida com sucesso.");
+      setRemoverAlvo(null);
+    } catch (e) {
+      setErroRemover(e instanceof Error ? e.message : "Erro ao remover.");
+    } finally {
+      setRemovendo(false);
     }
   }
 
@@ -470,13 +502,31 @@ function TabContas({ familyId }: { familyId: string }) {
                     )}
                   </div>
                   {!emEdicao && (
-                    <button
-                      onClick={() => { setEditId(u.userId as string); setNovoEmail(u.email); setErro(""); setOkMsg(""); }}
-                      className="p-1.5 text-ink-300 hover:text-coral-600 hover:bg-coral-50 rounded transition-colors shrink-0"
-                      aria-label={`Editar email de ${u.name}`}
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={() => { setEditId(u.userId as string); setNovoEmail(u.email); setErro(""); setOkMsg(""); }}
+                        className="p-2 text-ink-300 hover:text-coral-600 hover:bg-coral-50 rounded transition-colors"
+                        aria-label={`Editar email de ${u.name}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRemoverAlvo({
+                            userId: u.userId,
+                            nome: u.pessoaNome || u.name,
+                            email: u.email,
+                          });
+                          setErroRemover("");
+                          setOkMsg("");
+                        }}
+                        className="p-2 text-ink-300 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        aria-label={`Remover conta de ${u.pessoaNome || u.name}`}
+                        title="Remover conta"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </Card>
@@ -484,6 +534,23 @@ function TabContas({ familyId }: { familyId: string }) {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!removerAlvo}
+        onClose={fecharRemocao}
+        onConfirm={confirmarRemocao}
+        closeOnConfirm={false}
+        loading={removendo}
+        erro={erroRemover}
+        title="Remover conta de login"
+        confirmLabel="Remover conta"
+        loadingLabel="Removendo..."
+        description={
+          removerAlvo
+            ? `Tem certeza que deseja remover a conta de ${removerAlvo.nome}?\n\nLogin: ${removerAlvo.email}\n\nO acesso será revogado e o perfil desta pessoa ficará desativado. Os registros históricos são mantidos.\n\nEsta ação não pode ser desfeita.`
+            : ""
+        }
+      />
     </div>
   );
 }

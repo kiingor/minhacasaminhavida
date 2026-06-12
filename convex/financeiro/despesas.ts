@@ -328,6 +328,47 @@ export const update = mutation({
   },
 });
 
+// Estorno de compra no cartão (Fase 3): cria um lançamento de valor NEGATIVO na
+// competência da data do estorno, copiando cartão/categoria da compra original.
+// Reduz o saldo da fatura e libera limite naturalmente (agregação pura). Não edita
+// a despesa-mãe — preserva parcelas já pagas.
+export const estornar = mutation({
+  args: {
+    sessionToken: v.string(),
+    despesaOrigemId: v.id("despesas"),
+    valor: v.number(), // centavos (positivo; será gravado negativo)
+    data: v.string(), // YYYY-MM-DD (data do estorno)
+    descricao: v.optional(v.string()),
+  },
+  handler: async (ctx, { sessionToken, despesaOrigemId, valor, data, descricao }) => {
+    const user = await getCurrentUser(ctx, sessionToken);
+    const origem = await ctx.db.get(despesaOrigemId);
+    if (!origem || origem.familyId !== user.familyId) throw new Error("Lançamento não encontrado");
+    if (!origem.cartao) throw new Error("Só é possível estornar compras de cartão");
+    const valorAbs = Math.abs(Math.round(valor));
+    if (valorAbs <= 0) throw new Error("Informe um valor de estorno maior que zero");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error("Data inválida");
+    const desc = descricao?.trim() || `Estorno: ${origem.descricao}`;
+    return await ctx.db.insert("despesas", {
+      descricao: desc,
+      valor: -valorAbs,
+      tipo: "avulsa",
+      categoriaId: origem.categoriaId,
+      pessoaId: origem.pessoaId,
+      contaId: origem.contaId,
+      dataVencimento: data,
+      dataCompra: data,
+      cartao: origem.cartao,
+      cartaoId: origem.cartaoId,
+      pago: false,
+      observacao: `Estorno de "${origem.descricao}"`,
+      criadoPor: user._id,
+      familyId: user.familyId,
+      criadoEm: new Date().toISOString(),
+    });
+  },
+});
+
 export const remove = mutation({
   args: { sessionToken: v.string(), id: v.id("despesas") },
   handler: async (ctx, { sessionToken, id }) => {

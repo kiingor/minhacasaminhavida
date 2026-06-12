@@ -281,7 +281,8 @@ export const detalheCartao = query({
         lancs.sort((a, b) => a.dataRef.localeCompare(b.dataRef));
         const valorTotal = lancs.reduce((s, l) => s + l.valor, 0);
         const valorPago = lancs.filter((l) => l.pago).reduce((s, l) => s + l.valor, 0);
-        const qtdNaoPagas = lancs.filter((l) => !l.pago).length;
+        // Estornos (valor < 0) são créditos: não exigem pagamento, não bloqueiam "paga".
+        const qtdNaoPagas = lancs.filter((l) => !l.pago && l.valor > 0).length;
         return {
           competencia,
           dataFechamento: temCiclo ? dataFechamentoDaCompetencia(competencia, F!) : null,
@@ -299,6 +300,35 @@ export const detalheCartao = query({
     const faturaAtual = faturas.find((f) => f.competencia === compAtual) ?? null;
     const historico = faturas.filter((f) => f.competencia < compAtual).sort((a, b) => b.competencia.localeCompare(a.competencia));
     const futuras = faturas.filter((f) => f.competencia > compAtual);
+
+    // Limite disponível decomposto (Fase 3). Comprometido = saldo da fatura aberta +
+    // faturas fechadas não pagas + parcelas/compras de faturas futuras. Estornos
+    // (lançamentos negativos) já reduziram cada valorTotal, então abatem aqui.
+    const limiteTotal = cartao.limiteTotal ?? null;
+    let limite: {
+      total: number;
+      faturaAberta: number;
+      fechadasNaoPagas: number;
+      parcelasFuturas: number;
+      comprometido: number;
+      disponivel: number;
+    } | null = null;
+    if (limiteTotal != null) {
+      const faturaAberta = faturaAtual ? faturaAtual.valorTotal - faturaAtual.valorPago : 0;
+      const fechadasNaoPagas = historico
+        .filter((f) => f.status !== "paga")
+        .reduce((s, f) => s + (f.valorTotal - f.valorPago), 0);
+      const parcelasFuturas = futuras.reduce((s, f) => s + f.valorTotal, 0);
+      const comprometido = faturaAberta + fechadasNaoPagas + parcelasFuturas;
+      limite = {
+        total: limiteTotal,
+        faturaAberta,
+        fechadasNaoPagas,
+        parcelasFuturas,
+        comprometido,
+        disponivel: limiteTotal - comprometido,
+      };
+    }
 
     // Parcelamentos em andamento (cross-fatura)
     const parcelamentos = despesas
@@ -349,6 +379,7 @@ export const detalheCartao = query({
         temCiclo,
       },
       compAtual,
+      limite,
       faturaAtual,
       historico,
       futuras,

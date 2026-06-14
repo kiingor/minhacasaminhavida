@@ -11,11 +11,13 @@ import {
   Check,
   RotateCcw,
   MoreVertical,
+  Layers,
 } from "lucide-react";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import { iconeDaCategoria } from "@/lib/categoriaIcons";
 import { Id } from "../../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Pill } from "@/components/ui/pill";
 
 interface BaseItem {
   id: string;
@@ -112,11 +114,18 @@ export function LancamentoItem({
 
   const IconCat = iconeDaCategoria(categoria?.icone);
 
-  // Sub-detalhes inline (parcela, cartão, fixa)
+  // Parcela do mês (só parceladas): número da parcela atual + quantas faltam.
+  // O backend já projeta `parcelaAtual` pro mês visualizado (ex.: 3 de 6).
+  const parcela =
+    item.tipo !== "transferencia" &&
+    item.tipoOriginal === "parcelada" &&
+    item.parcelaAtual &&
+    item.totalParcelas
+      ? { atual: item.parcelaAtual, total: item.totalParcelas, faltam: item.totalParcelas - item.parcelaAtual }
+      : null;
+
+  // Sub-detalhes inline (cartão, fixa)
   const subDetalhes: string[] = [];
-  if (item.tipo !== "transferencia" && item.parcelaAtual) {
-    subDetalhes.push(`${item.parcelaAtual}/${item.totalParcelas}`);
-  }
   if (item.tipo !== "transferencia" && item.ehFixa) subDetalhes.push("fixa");
   if (item.tipo === "despesa" && item.cartao) subDetalhes.push(item.cartao);
 
@@ -195,6 +204,23 @@ export function LancamentoItem({
               )}
             </span>
           )}
+
+          {/* Badge de parcela — número da parcela do mês (ex.: 3/6) */}
+          {parcela && (
+            <Pill
+              tone="coral"
+              size="xs"
+              className="shrink-0 normal-case tracking-normal tabular-nums"
+              title={
+                parcela.faltam > 0
+                  ? `Parcela ${parcela.atual} de ${parcela.total} — faltam ${parcela.faltam}`
+                  : `Parcela ${parcela.atual} de ${parcela.total} — última`
+              }
+            >
+              <Layers size={9} />
+              {parcela.atual}/{parcela.total}
+            </Pill>
+          )}
         </div>
 
         <div className="text-[11px] text-ink-400 truncate leading-tight mt-0.5">
@@ -213,6 +239,12 @@ export function LancamentoItem({
                 <><Sep /><span>de {pagador ? pagador.apelido ?? pagador.nome : item.pagadorNome}</span></>
               )}
               {subDetalhes.map((d) => (<span key={d}><Sep />{d}</span>))}
+              {parcela && (
+                <span className={parcela.faltam > 0 ? "text-coral-600 font-medium" : "text-emerald-600 font-medium"}>
+                  <Sep />
+                  {parcela.faltam > 0 ? `faltam ${parcela.faltam}` : "última parcela"}
+                </span>
+              )}
               {!ocultarData && (<><Sep /><span>{formatDate(item.dataRef)}</span></>)}
             </>
           )}

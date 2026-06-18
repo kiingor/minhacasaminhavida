@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, Wallet, ListChecks, Users, LogOut, Settings, ChevronDown, Briefcase, MessageSquare, CalendarClock, Search } from "lucide-react";
-import { useMutation } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useEffect, useState, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import { useSession, useSessionToken } from "@/contexts/SessionContext";
@@ -211,9 +211,50 @@ function isFamiliaOnlyPath(p: string): boolean {
   return familiaOnlyPaths.some((root) => p === root || p.startsWith(`${root}/`));
 }
 
+// Valida a sessão no servidor ANTES de renderizar o app autenticado.
+// Sem isso, um token vencido (ainda salvo no localStorage) deixava o dashboard
+// renderizar e TODAS as queries estouravam "Sessão expirada" → tela branca.
+// auth.me retorna null quando a sessão é inválida/expirada (não lança).
+function SessionGate({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  const { session, setSession } = useSession();
+  const token = useSessionToken();
+  const me = useQuery(api.auth.me, token ? { token } : "skip");
+
+  // Token inválido/expirado: limpa o que está velho no localStorage.
+  useEffect(() => {
+    if (token && me === null) setSession(null);
+  }, [token, me, setSession]);
+
+  // Validando — não renderiza o dashboard (e suas queries) com token vencido.
+  if (me === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream-100">
+        <div
+          className="w-8 h-8 rounded-full border-2 border-cream-300 border-t-coral-500 animate-spin"
+          aria-label="Carregando"
+        />
+      </div>
+    );
+  }
+
+  // Sessão inválida → login (o efeito acima já limpou o token).
+  if (me === null) return <RedirectTo path="/login" />;
+
+  // Sessão válida: aplica os redirects de papel e renderiza o shell.
+  const isConsultor = session?.role === "consultor";
+  if (isConsultor) {
+    if (path === "/" || isFamiliaOnlyPath(path)) return <RedirectTo path="/consultor" />;
+  } else {
+    if (path === "/consultor" || path.startsWith("/consultor/")) return <RedirectTo path="/" />;
+  }
+
+  return <AuthenticatedShell>{children}</AuthenticatedShell>;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { token, session } = useSession();
+  const { token } = useSession();
 
   if (path === "/login") return <>{children}</>;
 
@@ -224,12 +265,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!token) return <RedirectTo path="/login" />;
 
-  const isConsultor = session?.role === "consultor";
-  if (isConsultor) {
-    if (path === "/" || isFamiliaOnlyPath(path)) return <RedirectTo path="/consultor" />;
-  } else {
-    if (path === "/consultor" || path.startsWith("/consultor/")) return <RedirectTo path="/" />;
-  }
-
-  return <AuthenticatedShell>{children}</AuthenticatedShell>;
+  return <SessionGate>{children}</SessionGate>;
 }

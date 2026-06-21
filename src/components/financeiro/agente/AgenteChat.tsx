@@ -5,12 +5,16 @@ import Link from "next/link";
 import { ChevronLeft, Sparkles, Menu, X } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
-import { useSessionToken } from "@/contexts/SessionContext";
+import { useSession, useSessionToken } from "@/contexts/SessionContext";
 import { ChatLista } from "./ChatLista";
 import { ChatJanela } from "./ChatJanela";
 import { ChatInput } from "./ChatInput";
 
-const ULTIMA_KEY = "mcmv_agente_ultima_conversa";
+// Chave LEGADA (global) — vazava o conversaId entre famílias no mesmo aparelho:
+// um usuário herdava a conversa de OUTRA família e o backend rejeitava
+// ("Conversa não encontrada"). Mantida só pra purgar. A chave atual é por família.
+const LEGACY_ULTIMA_KEY = "mcmv_agente_ultima_conversa";
+const ultimaKeyDe = (familyId: string) => `mcmv_agente_ultima_conversa_${familyId}`;
 
 interface AgenteChatProps {
   /**
@@ -30,6 +34,8 @@ export function AgenteChat({
   esconderVoltar = false,
 }: AgenteChatProps) {
   const token = useSessionToken();
+  const { session } = useSession();
+  const familyId = session?.familyId;
   const criarConversa = useMutation(api.agente.conversas.criar);
   const processar = useAction(api.agente.core.processar);
   const [conversaId, setConversaId] = useState<Id<"conversasIA"> | null>(null);
@@ -37,18 +43,20 @@ export function AgenteChat({
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [sidebarMobile, setSidebarMobile] = useState(false);
 
-  // Restaurar última conversa
+  // Restaurar última conversa DA FAMÍLIA atual (isolada por familyId).
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(ULTIMA_KEY);
-    if (raw) setConversaId(raw as Id<"conversasIA">);
-  }, []);
+    if (typeof window === "undefined" || !familyId) return;
+    window.localStorage.removeItem(LEGACY_ULTIMA_KEY); // purga vazamento antigo
+    const raw = window.localStorage.getItem(ultimaKeyDe(familyId));
+    setConversaId(raw ? (raw as Id<"conversasIA">) : null);
+  }, [familyId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (conversaId) window.localStorage.setItem(ULTIMA_KEY, conversaId);
-    else window.localStorage.removeItem(ULTIMA_KEY);
-  }, [conversaId]);
+    if (typeof window === "undefined" || !familyId) return;
+    const key = ultimaKeyDe(familyId);
+    if (conversaId) window.localStorage.setItem(key, conversaId);
+    else window.localStorage.removeItem(key);
+  }, [conversaId, familyId]);
 
   async function handleNovaConversa() {
     if (!token) return;
@@ -67,6 +75,17 @@ export function AgenteChat({
     }>
   ) {
     if (!token) return;
+    const anexosPayload = anexos.map((a) => ({
+      tipo: a.tipo,
+      storageId: a.storageId as Id<"_storage">,
+      nome: a.nome,
+      mediaType: a.mediaType,
+    })) as Array<{
+      tipo: "imagem" | "pdf" | "audio" | "csv";
+      storageId: Id<"_storage">;
+      nome: string;
+      mediaType: string;
+    }>;
     let id = conversaId;
     if (!id) {
       id = await criarConversa({ sessionToken: token });
@@ -75,24 +94,22 @@ export function AgenteChat({
     setEnviando(true);
     setErroEnvio(null);
     try {
-      await processar({
-        sessionToken: token,
-        conversaId: id,
-        mensagem: texto,
-        anexos: anexos.map((a) => ({
-          tipo: a.tipo,
-          storageId: a.storageId as Id<"_storage">,
-          nome: a.nome,
-          mediaType: a.mediaType,
-        })) as Array<{
-          tipo: "imagem" | "pdf" | "audio" | "csv";
-          storageId: Id<"_storage">;
-          nome: string;
-          mediaType: string;
-        }>,
-      });
+      await processar({ sessionToken: token, conversaId: id, mensagem: texto, anexos: anexosPayload });
     } catch (e: unknown) {
-      setErroEnvio(e instanceof Error ? e.message : "Falha ao processar a mensagem");
+      const msg = e instanceof Error ? e.message : "";
+      // conversaId inválido/de outra família (id antigo no localStorage):
+      // cria uma conversa nova e tenta de novo (auto-recuperação).
+      if (/conversa n[ãa]o encontrada/i.test(msg)) {
+        try {
+          const novoId = await criarConversa({ sessionToken: token });
+          setConversaId(novoId);
+          await processar({ sessionToken: token, conversaId: novoId, mensagem: texto, anexos: anexosPayload });
+        } catch (e2) {
+          setErroEnvio(e2 instanceof Error ? e2.message : "Falha ao processar a mensagem");
+        }
+      } else {
+        setErroEnvio(msg || "Falha ao processar a mensagem");
+      }
     } finally {
       setEnviando(false);
     }
